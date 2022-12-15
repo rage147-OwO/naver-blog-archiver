@@ -11,7 +11,7 @@ python main.py --url https://blog.naver.com/guzus/222580566442 --dest dst
 ```
 python main.py --blog https://blog.naver.com/dls32208 --dest dst
 
-<--Save all만 해봤습니다
+
 
 
 추가한 것:
