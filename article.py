@@ -1,4 +1,5 @@
 import re
+import os
 
 import requests
 from bs4 import BeautifulSoup
@@ -14,10 +15,23 @@ class Article:
         return f"#{self.title}\n{self.post}"
 
     def save_file(self, dest):
+        try:
+            if not os.path.exists(dest):
+                os.makedirs(dest)
+        except OSError:
+            print("Error: Failed to create the directory.")
         markdown = self.as_markdown()
-        filename = self.title.replace("/", "-")
-
-        with open(f"{dest}/{filename}.md", "w") as f:
+        filename=self.title
+        specialChars = "\/:*?<>|"
+        Date=markdown[markdown.find("se_publishDate pcol2")+22:markdown.find("se_publishDate pcol2")+34]
+        Date=(Date.replace(". ","-")).replace(".","-")
+        if Date.strip()[-1]!='-':
+            Date=Date+"-";
+        for specialChar in specialChars:
+            filename=filename.replace(specialChar, "-")
+        filename=filename.replace('\"', '-')
+        markdown = markdown[0: markdown.find("<!-- SE_DOC_HEADER_START -->"):] + markdown[markdown.find("<!-- SE_DOC_HEADER_END -->") ::]        
+        with open(f"{dest}/"+Date+filename+".md", "w",encoding='UTF-8') as f:
             f.write(markdown)
 
     @staticmethod
