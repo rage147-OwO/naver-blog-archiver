@@ -1,6 +1,8 @@
 import argparse
 import json
 import re
+import os
+import shutil
 from typing import List
 
 import requests
@@ -27,19 +29,29 @@ def get_urls_from_blog_url(blog_url: str) -> List[str]:
 
 
 def get_urls() -> List[str]:
-    return ["https://blog.naver.com/guzus/222524175503"]
-
+    return ["https://blog.naver.com/dls32208/"]
+    
+def createFolder(directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        else:
+            shutil.rmtree(directory)
+            os.makedirs(directory)
+    except OSError:
+        print ('Error: Creating directory. ' +  directory)
 
 if __name__ == "__main__":
+    createFolder("images")
+    createFolder("posts")
     parser = argparse.ArgumentParser(description='options')
     parser.add_argument('--url', help='url of a blog article')
     parser.add_argument('--blog', help='url of a blog')
     parser.add_argument('--dest', help='destination directory where blog article should be saved')
     args = parser.parse_args()
 
-    dest = args.dest or "dst"
-    urls = [args.url] or get_urls()
-    blog = args.blog
+    dest = args.dest or "posts"
+    blog = "https://blog.naver.com/dls32208"
 
     if blog:
         for url in get_urls_from_blog_url(blog):
