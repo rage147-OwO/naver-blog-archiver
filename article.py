@@ -63,6 +63,7 @@ class Article:
 
 
 
+
     @staticmethod
     def get_article_from_simple_url(url: str):
         url_matcher = re.compile("(.*)blog.naver.com/(.*)/(.*)")
