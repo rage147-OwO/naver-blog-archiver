@@ -56,3 +56,6 @@ if __name__ == "__main__":
     if blog:
         for url in get_urls_from_blog_url(blog):
             Article.get_article_from_url(url=url).save_file(dest=dest)
+    else:
+        for url in urls:
+            Article.get_article_from_simple_url(url=url).save_file(dest=dest)
