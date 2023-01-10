@@ -4,8 +4,9 @@ import re
 import os
 import shutil
 from typing import List
+
 import requests
-from bs4 import BeautifulSoup as bs
+
 from article import Article
 
 
@@ -41,19 +42,6 @@ def createFolder(directory):
         print ('Error: Creating directory. ' +  directory)
 
 if __name__ == "__main__":
-    BlogMainLink="https://blog.naver.com/dls32208"
-    page = requests.get(BlogMainLink)
-    soup = bs(page.text, "html.parser")
-    print(soup)
-    main_links = soup.select("iframe")[0]['src']
-    main_links=BlogMainLink+main_links
-    page = requests.get(main_links)
-    soup = bs(page.text, "html.parser")
-    
-
-
-
-"""
     createFolder("images")
     createFolder("posts")
     parser = argparse.ArgumentParser(description='options')
@@ -68,4 +56,3 @@ if __name__ == "__main__":
     if blog:
         for url in get_urls_from_blog_url(blog):
             Article.get_article_from_url(url=url).save_file(dest=dest)
-"""
