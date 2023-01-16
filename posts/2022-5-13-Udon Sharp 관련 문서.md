@@ -1,7 +1,7 @@
 ---
 title: Udon Sharp 관련 문서
 categories:
-우동샤프강좌
+ - UdonSharpLecture
 ---
 #Udon Sharp 관련 문서 : 네이버 블로그
 <div class="wrap_rabbit pcol2 _param(1) _postViewArea222730446428" id="post-view222730446428">

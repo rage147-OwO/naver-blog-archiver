@@ -1,7 +1,7 @@
 ---
 title: udon sharp random 함수(메모용)
 categories:
-게임
+ - game
 ---
 #udon sharp random 함수(메모용) : 네이버 블로그
 <div class="wrap_rabbit pcol2 _param(1) _postViewArea222056767194" id="post-view222056767194">

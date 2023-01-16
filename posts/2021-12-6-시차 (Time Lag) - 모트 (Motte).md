@@ -1,7 +1,7 @@
 ---
 title: 시차 (Time Lag) - 모트 (Motte)
 categories:
-음악
+ - music
 ---
 #시차 (Time Lag) - 모트 (Motte) : 네이버 블로그
 <div class="wrap_rabbit pcol2 _param(1) _postViewArea222587948286" id="post-view222587948286">

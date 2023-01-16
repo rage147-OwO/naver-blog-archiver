@@ -1,7 +1,7 @@
 ---
 title: Vrchat Udon 월드 총
 categories:
-U＃예제
+ - U#Example
 ---
 #Vrchat Udon 월드 총 : 네이버 블로그
 <div class="wrap_rabbit pcol2 _param(1) _postViewArea222519074141" id="post-view222519074141">
@@ -40,13 +40,13 @@ U＃예제
 <div class="se-file-name-container">
 <span class="se-file-name">TeleportGun</span><span class="se-file-extension">.unitypackage</span>
 </div>
-<a class="se-file-save-button __se_link" data-linkdata='{"link": "https://blogattach.naver.net/099c15a6bdeded311dfc98a997760c70d4807a9e77/20210928_97_blogfile/dls32208_1632820001272_8O0RwH_unitypackage/TeleportGun.unitypackage"}' data-linktype="file" href="https://blogattach.naver.net/099c15a6bdeded311dfc98a997760c70d4807a9e77/20210928_97_blogfile/dls32208_1632820001272_8O0RwH_unitypackage/TeleportGun.unitypackage" role="button" target="_blank">
+<a class="se-file-save-button __se_link" data-linkdata='{"link": "https://blogattach.naver.net/099c15a6bdeded311dfc99a393760a76d280779c6b/20210928_97_blogfile/dls32208_1632820001272_8O0RwH_unitypackage/TeleportGun.unitypackage"}' data-linktype="file" href="https://blogattach.naver.net/099c15a6bdeded311dfc99a393760a76d280779c6b/20210928_97_blogfile/dls32208_1632820001272_8O0RwH_unitypackage/TeleportGun.unitypackage" role="button" target="_blank">
 <span class="se-blind">파일 다운로드</span>
 </a>
 </div>
 </div>
 </div>
-<script class="__se_module_data" data-module='{"type":"v2_file", "id" :"SE-fb7be0f3-37af-42c5-a064-62e2707e6343", "data" : { "link": "https://blogattach.naver.net/099c15a6bdeded311dfc98a997760c70d4807a9e77/20210928_97_blogfile/dls32208_1632820001272_8O0RwH_unitypackage/TeleportGun.unitypackage"}}' type="text/data"></script>
+<script class="__se_module_data" data-module='{"type":"v2_file", "id" :"SE-fb7be0f3-37af-42c5-a064-62e2707e6343", "data" : { "link": "https://blogattach.naver.net/099c15a6bdeded311dfc99a393760a76d280779c6b/20210928_97_blogfile/dls32208_1632820001272_8O0RwH_unitypackage/TeleportGun.unitypackage"}}' type="text/data"></script>
 </div> <div class="se-component se-image se-l-default" id="SE-356ad67f-cc26-43fa-846d-6b5dd93d0bcc">
 <div class="se-component-content se-component-content-fit">
 <div class="se-section se-section-image se-l-default se-section-align-">

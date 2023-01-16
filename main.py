@@ -53,9 +53,31 @@ if __name__ == "__main__":
     dest = args.dest or "posts"
     blog = "https://blog.naver.com/dls32208"
 
+    CategoryEngList=list()
+    CategoryKorList=list()
     if blog:
         for url in get_urls_from_blog_url(blog):
             Article.get_article_from_url(url=url).save_file(dest=dest)
-    else:
-        for url in urls:
-            Article.get_article_from_simple_url(url=url).save_file(dest=dest)
+            Engcategory=Article.get_article_from_url(url=url).get_Engcategory()
+            if Engcategory not in CategoryEngList:
+                CategoryEngList.append(Engcategory)
+                CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
+    createFolder("categorys")
+    for CategoryEng in CategoryEngList:
+        with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
+                f.write("---\ntitle : \""+CategoryEng+"\"\nlayout: archive"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
+
+
+"""
+category-2019 여름 자전거 국토종주
+---
+title: "2019 여름 자전거 국토종주"
+layout: archive
+permalink: categories/2019 여름 자전거 국토종주
+author_profile: true
+sidebar_main: true
+---
+
+{% assign posts = site.2019 여름 자전거 국토종주 %}
+{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}
+"""

@@ -1,7 +1,7 @@
 ---
 title: VRchat SDK 월드 로컬 테스트 로딩 중 꺼짐
 categories:
-VRchat
+ - Breach
 ---
 #VRchat SDK 월드 로컬 테스트 로딩 중 꺼짐 : 네이버 블로그
 <div class="wrap_rabbit pcol2 _param(1) _postViewArea222527879082" id="post-view222527879082">
