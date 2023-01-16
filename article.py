@@ -27,7 +27,7 @@ class Article:
         category=self.category
         category=category.replace("\n","")
         translator = googletrans.Translator()
-        category=translator.translate(category).text
+        category=translator.translate(category,dest='en',src='ko').text
         category=category.replace(" ","")
         filename=self.title
         specialChars = "\/:*?<>|"
@@ -59,7 +59,7 @@ class Article:
         category=self.category
         category=category.replace("\n","")
         translator = googletrans.Translator()
-        category=translator.translate(category).text
+        category=translator.translate(category,dest='en',src='ko').text
         category=category.replace(" ","")
         return category
     def get_Korcategory(self):

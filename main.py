@@ -51,7 +51,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dest = args.dest or "posts"
-    blog = "https://blog.naver.com/dls32208"
+    blog = "https://blog.naver.com/simon3198"
 
     CategoryEngList=list()
     CategoryKorList=list()
@@ -66,7 +66,12 @@ if __name__ == "__main__":
     for CategoryEng in CategoryEngList:
         with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
                 f.write("---\ntitle : \""+CategoryEng+"\"\nlayout: archive"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
-
+    with open(f"categorys/CategoryEng.md", "w",encoding='UTF-8') as f:
+                f.write('\n'.join(CategoryEngList) )
+    with open(f"categorys/CategoryKor.md", "w",encoding='UTF-8') as f:
+            f.write('\n'.join(CategoryKorList))
+    with open(f"categorys/CategoryKor.md", "w",encoding='UTF-8') as f:
+            f.write('\n'.join(CategoryKorList))
 
 """
 category-2019 여름 자전거 국토종주
