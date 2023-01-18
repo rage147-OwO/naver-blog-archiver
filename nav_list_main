@@ -18,92 +18,123 @@
             <!--ul 태그로 같은 카테고리들 모아둔 페이지들 나열-->
             <!--Cpp 카테고리 글들을 모아둔 페이지인 /categories/cpp 주소의 글로 링크 연결-->
             <!--category[1].size 로 해당 카테고리를 가진 글의 개수 표시-->
+
 <ul>
-{% for category in site.categories %}{% if category[0] == "animatedmovie" %}<li><a href="/categories/animatedmovie" class="">애니메이션 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "animatedmovie" %}
+<li><a href="/categories/animatedmovie" class="">애니메이션 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "Cooking" %}<li><a href="/categories/Cooking" class="">요리 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "Cooking" %}
+<li><a href="/categories/Cooking" class="">요리 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "2019SummerBicycleLandClass" %}<li><a href="/categories/2019SummerBicycleLandClass" class="">2019 여름 자전거 국토종주 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "2019SummerBicycleLandClass" %}
+<li><a href="/categories/2019SummerBicycleLandClass" class="">2019 여름 자전거 국토종주 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "Etc" %}<li><a href="/categories/Etc" class="">기타 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "Etc" %}
+<li><a href="/categories/Etc" class="">기타 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "bike" %}<li><a href="/categories/bike" class="">바이크 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "bike" %}
+<li><a href="/categories/bike" class="">바이크 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "Mymoney" %}<li><a href="/categories/Mymoney" class="">내돈내산 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "Mymoney" %}
+<li><a href="/categories/Mymoney" class="">내돈내산 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "UdonSharpLecture" %}<li><a href="/categories/UdonSharpLecture" class="">우동샤프강좌 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "UdonSharpLecture" %}
+<li><a href="/categories/UdonSharpLecture" class="">우동샤프강좌 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "graph" %}<li><a href="/categories/graph" class="">그래프 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "graph" %}
+<li><a href="/categories/graph" class="">그래프 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "game" %}<li><a href="/categories/game" class="">게임 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "game" %}
+<li><a href="/categories/game" class="">게임 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "stock" %}<li><a href="/categories/stock" class="">주식 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "stock" %}
+<li><a href="/categories/stock" class="">주식 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "music" %}<li><a href="/categories/music" class="">음악 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "music" %}
+<li><a href="/categories/music" class="">음악 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "VRCHAT" %}<li><a href="/categories/VRCHAT" class="">VRchat ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "VRCHAT" %}
+<li><a href="/categories/VRCHAT" class="">VRchat ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "U#Example" %}<li><a href="/categories/U#Example" class="">U＃예제 ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "U#Example" %}
+<li><a href="/categories/U#Example" class="">U＃예제 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "C++" %}<li><a href="/categories/C++" class="">C++ ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "C++" %}
+<li><a href="/categories/C++" class="">C++ ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
 
 <ul>
-{% for category in site.categories %}{% if category[0] == "C" %}<li><a href="/categories/C" class="">C ({{category[1].size}})</a></li>
+{% for category in site.categories %}
+{% if category[0] == "C" %}
+<li><a href="/categories/C" class="">C ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>

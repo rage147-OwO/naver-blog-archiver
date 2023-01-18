@@ -40,10 +40,9 @@ class Article:
         filename=filename.replace('\"', '-')
         filename=filename.replace(" - 네이버 블로그","")
         markdown = markdown[0: markdown.find("<!-- SE_DOC_HEADER_START -->"):] + markdown[markdown.find("<!-- SE_DOC_HEADER_END -->") ::]
-        markdown="---\n"+"title:\""+filename+"\"\ncategories:\n - "+category+"\n---\n"+markdown
+        markdown="---\n"+"title: \""+filename+"\"\ncategories:\n - "+category+"\n---\n"+markdown
         with open(f"{dest}/"+Date+filename+".md", "w",encoding='UTF-8') as f:
             f.write(markdown)
-        """
         os.makedirs("images/"+Date+filename)
         img_list = list()
         for img in self.image:
@@ -53,7 +52,6 @@ class Article:
                 ext_idx=(img_list[i].find('?type'))
                 ext=img_list[i][ext_idx-3:ext_idx]
                 urllib.request.urlretrieve(img_list[i], "images/"+Date+filename+'/'+str(i)+'.'+ext)
-        """
         print(self.URL)
     def get_Engcategory(self):
         category=self.category
