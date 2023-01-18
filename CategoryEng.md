@@ -10,6 +10,6 @@ game
 stock
 music
 VRCHAT
-U#Example
+U-Example
 C++
 C
