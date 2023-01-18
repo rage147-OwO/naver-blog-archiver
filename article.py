@@ -59,6 +59,9 @@ class Article:
         translator = googletrans.Translator()
         category=translator.translate(category,dest='en',src='ko').text
         category=category.replace(" ","")
+        specialChars = "\/:*?<>|#!"
+        for specialChar in specialChars:
+            category=category.replace(specialChar,"-")
         return category
     def get_Korcategory(self):
         category=self.category
