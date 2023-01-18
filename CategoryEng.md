@@ -1,6 +1,7 @@
+personalproject
 animatedmovie
 Cooking
-2019SummerBicycleLandClass
+SummerBicycleSoup
 Etc
 bike
 Mymoney
@@ -10,6 +11,5 @@ game
 stock
 music
 VRCHAT
-U-Example
-C++
+UdonSharpexample
 C

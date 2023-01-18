@@ -65,7 +65,7 @@ if __name__ == "__main__":
                 CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
     for CategoryEng in CategoryEngList:
         with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
-                f.write("---\ntitle: \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site.categories ."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
+                f.write("---\ntitle: \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site.categories."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
     with open(f"CategoryEng.md", "w",encoding='UTF-8') as f:
                 f.write('\n'.join(CategoryEngList) )
     with open(f"CategoryKor.md", "w",encoding='UTF-8') as f:
@@ -80,18 +80,4 @@ if __name__ == "__main__":
         f.write("</li>\n</ul>\n</nav>")
 
     
-
-"""
-category-2019 여름 자전거 국토종주
----
-title: "2019 여름 자전거 국토종주"
-layout: archive
-permalink: categories/2019 여름 자전거 국토종주
-author_profile: true
-sidebar_main: true
----
-
-{% assign posts = site.2019 여름 자전거 국토종주 %}
-{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}
-"""
 

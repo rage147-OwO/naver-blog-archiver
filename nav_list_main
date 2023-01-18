@@ -21,6 +21,14 @@
 
 <ul>
 {% for category in site.categories %}
+{% if category[0] == "personalproject" %}
+<li><a href="/categories/personalproject" class="">개인프로젝트 ({{category[1].size}})</a></li>
+{% endif %}
+{% endfor %}
+</ul>
+
+<ul>
+{% for category in site.categories %}
 {% if category[0] == "animatedmovie" %}
 <li><a href="/categories/animatedmovie" class="">애니메이션 ({{category[1].size}})</a></li>
 {% endif %}
@@ -37,8 +45,8 @@
 
 <ul>
 {% for category in site.categories %}
-{% if category[0] == "2019SummerBicycleLandClass" %}
-<li><a href="/categories/2019SummerBicycleLandClass" class="">2019 여름 자전거 국토종주 ({{category[1].size}})</a></li>
+{% if category[0] == "SummerBicycleSoup" %}
+<li><a href="/categories/SummerBicycleSoup" class="">2019여름자전거국토종주 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
@@ -117,16 +125,8 @@
 
 <ul>
 {% for category in site.categories %}
-{% if category[0] == "U-Example" %}
-<li><a href="/categories/U-Example" class="">U＃예제 ({{category[1].size}})</a></li>
-{% endif %}
-{% endfor %}
-</ul>
-
-<ul>
-{% for category in site.categories %}
-{% if category[0] == "C++" %}
-<li><a href="/categories/C++" class="">C++ ({{category[1].size}})</a></li>
+{% if category[0] == "UdonSharpexample" %}
+<li><a href="/categories/UdonSharpexample" class="">우동샤프예제 ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
@@ -134,7 +134,7 @@
 <ul>
 {% for category in site.categories %}
 {% if category[0] == "C" %}
-<li><a href="/categories/C" class="">C ({{category[1].size}})</a></li>
+<li><a href="/categories/C" class="">C++ ({{category[1].size}})</a></li>
 {% endif %}
 {% endfor %}
 </ul>
