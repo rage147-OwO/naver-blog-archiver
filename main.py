@@ -65,14 +65,14 @@ if __name__ == "__main__":
                 CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
     for CategoryEng in CategoryEngList:
         with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
-                f.write("---\ntitle : \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
-    with open(f"categorys/CategoryEng.md", "w",encoding='UTF-8') as f:
+                f.write("---\ntitle: \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
+    with open(f"CategoryEng.md", "w",encoding='UTF-8') as f:
                 f.write('\n'.join(CategoryEngList) )
-    with open(f"categorys/CategoryKor.md", "w",encoding='UTF-8') as f:
+    with open(f"CategoryKor.md", "w",encoding='UTF-8') as f:
             f.write('\n'.join(CategoryKorList))
     with open("nav_list_main_original", "rt",encoding='UTF-8') as f:
         lines = f.readlines()
-    with open("categorys/nav_list_main", "w",encoding='UTF-8') as f:
+    with open("nav_list_main", "w",encoding='UTF-8') as f:
         f.write(''.join(lines)) 
         for KorCategory in range(len(CategoryKorList)):
             f.write("\n<ul>\n{% for category in site.categories %}{% if category[0] == \""+CategoryEngList[KorCategory]+"\" %}<li><a href=\"/categories/"+CategoryEngList[KorCategory]+"\" class=\"\">"+CategoryKorList[KorCategory]+" ({{category[1].size}})</a></li>\n{% endif %}\n{% endfor %}\n</ul>\n") 
