@@ -65,7 +65,7 @@ if __name__ == "__main__":
                 CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
     for CategoryEng in CategoryEngList:
         with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
-                f.write("---\ntitle : \""+CategoryEng+"\"\nlayout: archive"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
+                f.write("---\ntitle : \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
     with open(f"categorys/CategoryEng.md", "w",encoding='UTF-8') as f:
                 f.write('\n'.join(CategoryEngList) )
     with open(f"categorys/CategoryKor.md", "w",encoding='UTF-8') as f:
