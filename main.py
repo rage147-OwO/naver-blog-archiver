@@ -44,6 +44,7 @@ def createFolder(directory):
 if __name__ == "__main__":
     createFolder("images")
     createFolder("posts")
+    createFolder("categorys")
     parser = argparse.ArgumentParser(description='options')
     parser.add_argument('--url', help='url of a blog article')
     parser.add_argument('--blog', help='url of a blog')
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dest = args.dest or "posts"
-    blog = "https://blog.naver.com/simon3198"
+    blog = "https://blog.naver.com/dls32208"
 
     CategoryEngList=list()
     CategoryKorList=list()
@@ -62,7 +63,6 @@ if __name__ == "__main__":
             if Engcategory not in CategoryEngList:
                 CategoryEngList.append(Engcategory)
                 CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
-    createFolder("categorys")
     for CategoryEng in CategoryEngList:
         with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
                 f.write("---\ntitle : \""+CategoryEng+"\"\nlayout: archive"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
@@ -70,8 +70,15 @@ if __name__ == "__main__":
                 f.write('\n'.join(CategoryEngList) )
     with open(f"categorys/CategoryKor.md", "w",encoding='UTF-8') as f:
             f.write('\n'.join(CategoryKorList))
-    with open(f"categorys/CategoryKor.md", "w",encoding='UTF-8') as f:
-            f.write('\n'.join(CategoryKorList))
+    with open("nav_list_main_original", "rt",encoding='UTF-8') as f:
+        lines = f.readlines()
+    with open("categorys/nav_list_main", "w",encoding='UTF-8') as f:
+        f.write(''.join(lines)) 
+        for KorCategory in range(len(CategoryKorList)):
+            f.write("\n<ul>\n{% for category in site.categories %}{% if category[0] == \""+CategoryEngList[KorCategory]+"\" %}<li><a href=\"/categories/"+CategoryEngList[KorCategory]+"\" class=\"\">"+CategoryKorList[KorCategory]+" ({{category[1].size}})</a></li>\n{% endif %}\n{% endfor %}\n</ul>\n") 
+        f.write("</li>\n</ul>\n</nav>")
+
+    
 
 """
 category-2019 여름 자전거 국토종주
@@ -86,3 +93,4 @@ sidebar_main: true
 {% assign posts = site.2019 여름 자전거 국토종주 %}
 {% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}
 """
+
