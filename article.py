@@ -21,9 +21,12 @@ class Article:
         translator = googletrans.Translator()
         category=translator.translate(category,dest='en',src='ko').text
         category=category.replace(" ","")
-        specialChars = "\/:*?<>|~!@#$%^&*()_+1234567890"
-        for specialChar in specialChars:
-            category=category.replace(specialChar, "")
+        specialChars = "\/:*?<>|~!@#$%^&*()_+`-={}|[]\;':\",./<>?"
+        Numbers="1234567890"
+        for specialChar in Numbers:
+            category=category.replace(specialChar, "specialChar")
+        for Num in Numbers:
+            category=category.replace(Num, "")
         return category
     def as_markdown(self):
         return f"#{self.title}\n{self.post}"
@@ -43,6 +46,7 @@ class Article:
             Date=Date+"-"
         if("전" in Date):
             Date=datetime.today().strftime("%Y-%m-%d")+"-"
+            Date.replace("0","")
         for specialChar in specialChars:
             filename=filename.replace(specialChar, "-")
         filename=filename.replace('\"', '-')
