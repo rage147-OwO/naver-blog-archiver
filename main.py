@@ -42,37 +42,40 @@ def createFolder(directory):
         print ('Error: Creating directory. ' +  directory)
 
 if __name__ == "__main__":
-    createFolder("images")
-    createFolder("posts")
-    createFolder("categorys")
-    parser = argparse.ArgumentParser(description='options')
-    parser.add_argument('--url', help='url of a blog article')
-    parser.add_argument('--blog', help='url of a blog')
-    parser.add_argument('--dest', help='destination directory where blog article should be saved')
-    args = parser.parse_args()
+    
+    
+    BlogID="dls32208"
+    SavedPostPath="SavedPost/"+BlogID
+    BlogURL="https://blog.naver.com/"+BlogID
 
-    dest = args.dest or "posts"
-    blog = "https://blog.naver.com/dls32208"
-
+    PostPath=SavedPostPath+"\_posts"  
+    ImagePath=SavedPostPath+"\_images"
+    CategoryPath=SavedPostPath+"\_pages\categories"
+    
+    createFolder(BlogID)
+    createFolder(PostPath)
+    createFolder(ImagePath)
+    createFolder(CategoryPath)
     CategoryEngList=list()
     CategoryKorList=list()
-    if blog:
-        for url in get_urls_from_blog_url(blog):
-            Article.get_article_from_url(url=url).save_file(dest=dest)
-            Engcategory=Article.get_article_from_url(url=url).get_Engcategory()
-            if Engcategory not in CategoryEngList:
-                CategoryEngList.append(Engcategory)
-                CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
+    for url in get_urls_from_blog_url(BlogURL):
+        Article.get_article_from_url(url=url).save_file(PostPath,ImagePath)
+        Engcategory=Article.get_article_from_url(url=url).get_Engcategory()
+        if Engcategory not in CategoryEngList:
+            CategoryEngList.append(Engcategory)
+            CategoryKorList.append(Article.get_article_from_url(url=url).get_Korcategory())
+         
+            
     for CategoryEng in CategoryEngList:
-        with open(f"categorys/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
+        with open(f+CategoryPath+"/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
                 f.write("---\ntitle: \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site.categories."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
-    with open(f"CategoryEng.md", "w",encoding='UTF-8') as f:
+    with open(f+BlogID+"CategoryEng.md", "w",encoding='UTF-8') as f:
                 f.write('\n'.join(CategoryEngList) )
-    with open(f"CategoryKor.md", "w",encoding='UTF-8') as f:
+    with open(f+BlogID+"CategoryKor.md", "w",encoding='UTF-8') as f:
             f.write('\n'.join(CategoryKorList))
     with open("nav_list_main_original", "rt",encoding='UTF-8') as f:
         lines = f.readlines()
-    with open("nav_list_main", "w",encoding='UTF-8') as f:
+    with open(BlogID+"/nav_list_main", "w",encoding='UTF-8') as f:
         f.write(''.join(lines)) 
         f.write("\n")
         for KorCategory in range(len(CategoryKorList)):
