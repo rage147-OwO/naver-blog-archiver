@@ -41,18 +41,16 @@ def createFolder(directory):
     except OSError:
         print ('Error: Creating directory. ' +  directory)
 
-if __name__ == "__main__":
-    
-    
+if __name__ == "__main__":   
     BlogID="dls32208"
-    SavedPostPath="SavedPost/"+BlogID
+    SavedPostPath="SavedPost\\"+BlogID
     BlogURL="https://blog.naver.com/"+BlogID
 
     PostPath=SavedPostPath+"\_posts"  
     ImagePath=SavedPostPath+"\_images"
     CategoryPath=SavedPostPath+"\_pages\categories"
     
-    createFolder(BlogID)
+    createFolder(SavedPostPath)
     createFolder(PostPath)
     createFolder(ImagePath)
     createFolder(CategoryPath)
@@ -67,15 +65,15 @@ if __name__ == "__main__":
          
             
     for CategoryEng in CategoryEngList:
-        with open(f+CategoryPath+"/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
+        with open(CategoryPath+"/category-"+CategoryEng+".md", "w",encoding='UTF-8') as f:
                 f.write("---\ntitle: \""+CategoryEng+"\"\nlayout: archive\n"+"permalink: categories/"+CategoryEng+"\nauthor_profile: true\nsidebar_main: true\n---\n\n{% assign posts = site.categories."+CategoryEng+" %}\n{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}")
-    with open(f+BlogID+"CategoryEng.md", "w",encoding='UTF-8') as f:
+    with open(SavedPostPath+"CategoryEng.md", "w",encoding='UTF-8') as f:
                 f.write('\n'.join(CategoryEngList) )
-    with open(f+BlogID+"CategoryKor.md", "w",encoding='UTF-8') as f:
+    with open(SavedPostPath+"CategoryKor.md", "w",encoding='UTF-8') as f:
             f.write('\n'.join(CategoryKorList))
     with open("nav_list_main_original", "rt",encoding='UTF-8') as f:
         lines = f.readlines()
-    with open(BlogID+"/nav_list_main", "w",encoding='UTF-8') as f:
+    with open(SavedPostPath+"/nav_list_main", "w",encoding='UTF-8') as f:
         f.write(''.join(lines)) 
         f.write("\n")
         for KorCategory in range(len(CategoryKorList)):
