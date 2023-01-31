@@ -10,6 +10,7 @@ import requests
 from article import Article
 
 
+
 def get_urls_from_blog_url(blog_url: str) -> List[str]:
     author = re.compile("(.*)blog.naver.com/(.*)").match(blog_url).group(2)
     curr_page, count_per_page, total_count = 1, 5, None
