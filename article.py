@@ -42,7 +42,7 @@ class Article:
         filename=filename.replace(" - 네이버 블로그","")
         markdown = markdown[0: markdown.find("<!-- SE_DOC_HEADER_START -->"):] + markdown[markdown.find("<!-- SE_DOC_HEADER_END -->") ::]
         markdown="---\n"+"title: \""+filename+"\"\ncategories:\n - "+category+"\n---\n"+markdown
-        os.makedirs(imagepath+"/"+self.date+filename)
+        os.makedirs(imagepath+"/"+self.date+filename, exist_ok=True)
         img_list = list()
         for img in self.image:
                 img_list.append(img.get('data-lazy-src'))  # 큰사진의 
