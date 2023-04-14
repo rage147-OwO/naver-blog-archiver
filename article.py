@@ -4,7 +4,12 @@ import requests
 from bs4 import BeautifulSoup
 import urllib
 import googletrans
+from markdownify import markdownify
 from datetime import datetime
+
+
+
+
 
 class Article:
     def __init__(self, URL ,Author, Title,Date, Post,Image,Category):
@@ -61,6 +66,7 @@ class Article:
                     ext='jpg'
                 markdown=markdown.replace(img__list[i],'https://raw.githubusercontent.com/rage147-OwO/rage147-OwO.github.io/master/_images/images/'+self.date+filename+'/'+str(i)+'.'+"png")
         markdown=markdown.replace("</img>","")
+        markdown = markdownify(str(markdown))
         with open(f"{postpath}/"+self.date+filename+".md", "w",encoding='UTF-8') as f:
                 f.write(markdown)
         print(self.url+"\n"+self.date+filename+" "+category)
@@ -78,6 +84,14 @@ class Article:
         response = requests.get(url).text
         iframe_soup = BeautifulSoup(response, 'html.parser')
 
+        # 코드 블록 요소 찾기
+        code_blocks = iframe_soup.find_all("div", {"class": "__se_code_view language-javascript"})
+
+        # 코드 블록 요소를 markdown 코드 블록으로 변환
+        for code_block in code_blocks:
+            code_text = code_block.get_text().strip()
+            markdown_code = "```\n"+code_text+"\n```"
+            code_block.replace_with(BeautifulSoup(markdown_code, "html.parser"))
 
         post=iframe_soup.find('div', attrs={"id": f"post-view{article_id}"})
         date=post.find("span","se_publishDate pcol2").text[0:12]
@@ -96,3 +110,4 @@ class Article:
             Image=iframe_soup.select('.se-image-resource'),
             Date= date
         )
+
