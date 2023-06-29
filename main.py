@@ -4,9 +4,7 @@ import re
 import os
 import shutil
 from typing import List
-
 import requests
-
 from article import Article
 
 
