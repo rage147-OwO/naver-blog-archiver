@@ -14,7 +14,7 @@ python main.py --blog https://blog.naver.com/dls32208 --dest dst
 
 
 
-추가한 것:
+## 추가한 것:
 -파일명이 될 수 없는 단어 -로 대체(\/:*?<>|)->(-)
 -폴더가 없는 경우 생성
 -파일을 yyyy-mm-dd-title.md 형식으로 저장(For Jekyll)
