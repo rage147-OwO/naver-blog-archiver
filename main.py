@@ -67,7 +67,7 @@ def create_nav_list_main(saved_post_path: str, categories_eng: List[str], catego
 
 
 if __name__ == "__main__":
-    blog_id = "dls32208"
+    blog_id = "rage147-owo"
     saved_post_path = "SavedPost\\" + blog_id
     blog_url = "https://blog.naver.com/" + blog_id
 
