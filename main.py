@@ -75,7 +75,7 @@ if __name__ == "__main__":
     image_path = saved_post_path + "\\_images"
     category_path = saved_post_path + "\\_pages\\categories"
 
-    EXCLUDED_CATEGORIES = ["2023일기", "2022일기"]  # Add names of the categories you want to exclude.
+    EXCLUDED_CATEGORIES = ["2023일기", "2022일기","요리","게임","음악","주식","기타","내돈내산","영화","바이크"]  # Add names of the categories you want to exclude.
     EXCLUDED_CATEGORIES_CLEANED = [category.lower().replace(" ", "") for category in EXCLUDED_CATEGORIES]
 
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         article.save_file(post_path, image_path)
         eng_category = article.get_Engcategory()
 
-        if cleaned_category not in category_eng_list:
+        if eng_category not in category_eng_list:
             category_eng_list.append(eng_category)
             category_kor_list.append(article.get_Korcategory())
 

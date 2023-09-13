@@ -8,7 +8,12 @@ from markdownify import markdownify
 from datetime import datetime
 
 
-
+def remove_first_sentence_and_whitespace(text):
+    sentences = text.split('\n')
+    remaining_text = '\n'.join(sentences[1:])
+    remaining_text = remaining_text.strip()
+    remaining_text = remaining_text.lstrip('\n')
+    return remaining_text
 
 
 class Article:
@@ -67,6 +72,8 @@ class Article:
                 markdown=markdown.replace(img__list[i],'https://raw.githubusercontent.com/rage147-OwO/rage147-OwO.github.io/master/_images/images/'+self.date+filename+'/'+str(i)+'.'+"png")
         markdown=markdown.replace("</img>","")
         markdown = markdownify(str(markdown))
+        markdown=remove_first_sentence_and_whitespace(markdown)
+        print(markdown)
         with open(f"{postpath}/"+self.date+filename+".md", "w",encoding='UTF-8') as f:
                 f.write(markdown)
         print(self.url+"\n"+self.date+filename+" "+category)
