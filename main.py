@@ -98,9 +98,10 @@ if __name__ == "__main__":
             continue  # Skip the article if its category is in the excluded list.
 
         article.save_file(post_path, image_path)
+        eng_category = article.get_Engcategory()
 
         if cleaned_category not in category_eng_list:
-            category_eng_list.append(cleaned_category)
+            category_eng_list.append(eng_category)
             category_kor_list.append(article.get_Korcategory())
 
 
