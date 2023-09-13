@@ -75,6 +75,10 @@ if __name__ == "__main__":
     image_path = saved_post_path + "\\_images"
     category_path = saved_post_path + "\\_pages\\categories"
 
+    EXCLUDED_CATEGORIES = ["2023일기", "2022일기"]  # Add names of the categories you want to exclude.
+    EXCLUDED_CATEGORIES_CLEANED = [category.lower().replace(" ", "") for category in EXCLUDED_CATEGORIES]
+
+
     create_folder(saved_post_path)
     create_folder(post_path)
     create_folder(image_path)
@@ -85,12 +89,20 @@ if __name__ == "__main__":
 
     for url in get_urls_from_blog_url(blog_url):
         article = Article.get_article_from_url(url=url)
-        article.save_file(post_path, image_path)
-        eng_category = article.get_Engcategory()
+        cleaned_category = article.category.lower().replace(" ", "").strip().replace("\n", "")
 
-        if eng_category not in category_eng_list:
-            category_eng_list.append(eng_category)
+
+        print(f"Processing article: {article.title} ({cleaned_category})")
+        if cleaned_category in EXCLUDED_CATEGORIES_CLEANED:
+            print(f"Excluded category: {cleaned_category}")
+            continue  # Skip the article if its category is in the excluded list.
+
+        article.save_file(post_path, image_path)
+
+        if cleaned_category not in category_eng_list:
+            category_eng_list.append(cleaned_category)
             category_kor_list.append(article.get_Korcategory())
+
 
     save_categories(category_eng_list, category_kor_list, category_path)
     create_nav_list_main(saved_post_path, category_eng_list, category_kor_list)
