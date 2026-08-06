@@ -1,0 +1,23 @@
+# 런타임 산출물
+archive/
+SavedPost/
+dst/
+config.json
+
+# Python
+__pycache__/
+*.pyc
+venv/
+forBlog/
+.venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+*.exe
+
+# IDE
+.vs/
+.idea/
+*.iml
