@@ -58,6 +58,8 @@ DEFAULT_CONFIG = {
     "image_original_quality": True,        # 원본 화질 시도 (blogfiles / type=w3840)
     "excluded_categories": [],             # Jekyll 내보내기에서 제외할 카테고리 (백업은 전부 저장)
     "jekyll_image_base_url": "https://raw.githubusercontent.com/<user>/<repo>/master/_images",
+    "jekyll_repo_dir": "",                 # GitHub Pages 저장소 로컬 경로 (publish 명령용)
+    "publish_after_sync": False,           # 동기화 후 자동으로 블로그 배포
     "web_port": 8765,
 }
 
@@ -688,6 +690,14 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
                      result["failed"], run_id))
         con.commit()
         log(f"완료 — 신규 {result['added']}, 갱신 {result['updated']}, 실패 {result['failed']}")
+
+        # 동기화 후 자동 블로그 배포 (config: publish_after_sync)
+        if cfg.get("publish_after_sync") and (result["added"] or result["updated"]) and not state.get("stop"):
+            try:
+                log("변경 감지 → GitHub Pages 블로그 자동 배포 시작")
+                publish_jekyll(cfg, log=log)
+            except Exception as e:
+                log(f"[블로그 배포 실패] {e}")
     except Exception as e:
         con.execute("UPDATE sync_runs SET finished_at=?, note=? WHERE id=?",
                     (now_iso(), f"오류: {e}", run_id))
@@ -742,14 +752,19 @@ NAV_TEMPLATE = """<!--전체 글 수를 세기 위한 연산. sum 변수에 전�
 """
 
 
+def _norm_cat(name: str) -> str:
+    """카테고리명 비교용 정규화 — NBSP(\\xa0)·제로폭 문자 포함 모든 공백 제거 + 소문자."""
+    return re.sub(r"[\s ​]+", "", (name or "")).lower()
+
+
 def _export_posts(con, cfg, include_excluded: bool):
     """내보내기 대상 글 목록. Jekyll은 제외 카테고리 적용."""
     rows = con.execute(
         "SELECT * FROM posts WHERE html_raw != '' ORDER BY published_at").fetchall()
     if include_excluded:
         return rows
-    excluded = {c.lower().replace(" ", "") for c in cfg.get("excluded_categories", [])}
-    return [r for r in rows if r["category"].lower().replace(" ", "") not in excluded]
+    excluded = {_norm_cat(c) for c in cfg.get("excluded_categories", [])}
+    return [r for r in rows if _norm_cat(r["category"]) not in excluded]
 
 
 def export_jekyll(cfg: dict, dest: Path = None, log=None) -> dict:
@@ -843,6 +858,48 @@ def export_markdown(cfg: dict, dest: Path = None, log=None) -> dict:
     con.close()
     log(f"Markdown 내보내기 완료: 글 {len(posts)}개 → {dest}")
     return {"count": len(posts), "dest": str(dest)}
+
+
+def publish_jekyll(cfg: dict, log=None) -> dict:
+    """Jekyll 내보내기 → GitHub Pages 저장소 반영 → commit → push.
+    관리 영역(_posts/NaverBackup, _images, _pages/categories, _includes/nav_list_main)만
+    통째로 교체하므로 저장소의 다른 파일(직접 쓴 글 등)은 건드리지 않는다."""
+    import subprocess
+    log = log or (lambda m: print(m, flush=True))
+    repo = Path(cfg.get("jekyll_repo_dir") or "")
+    if not repo.is_dir() or not (repo / ".git").exists():
+        raise RuntimeError(f"jekyll_repo_dir가 git 저장소가 아닙니다: {repo} (설정에서 지정하세요)")
+
+    r = export_jekyll(cfg, log=log)
+    src = Path(r["dest"])
+
+    managed = ["_posts/NaverBackup", "_images", "_pages/categories", "_includes/nav_list_main"]
+    for s, d in [(src / "_posts", repo / "_posts" / "NaverBackup"),
+                 (src / "_images", repo / "_images"),
+                 (src / "_pages" / "categories", repo / "_pages" / "categories")]:
+        if d.exists():
+            shutil.rmtree(d)
+        shutil.copytree(s, d)
+    (repo / "_includes").mkdir(exist_ok=True)
+    shutil.copyfile(src / "nav_list_main", repo / "_includes" / "nav_list_main")
+
+    def git(*args):
+        p = subprocess.run(["git", "-C", str(repo), *args],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if p.returncode != 0:
+            raise RuntimeError(f"git {args[0]} 실패: {(p.stderr or p.stdout).strip()[:400]}")
+        return p.stdout
+
+    git("add", "-A", "--", *managed)
+    changed = len([l for l in git("status", "--porcelain", "--", *managed).splitlines() if l.strip()])
+    if changed == 0:
+        log("블로그 저장소에 변경 없음 — 커밋/푸시 생략")
+        return {"count": r["count"], "changed": 0, "pushed": False, "dest": str(repo)}
+    git("commit", "-m", f"네이버 블로그 동기화 {datetime.now(KST):%Y-%m-%d %H:%M} — 글 {r['count']}개")
+    log(f"커밋 완료 (변경 {changed}개 파일) — push 중...")
+    git("push", "origin", "HEAD")
+    log(f"배포 완료: 글 {r['count']}개 → {repo}")
+    return {"count": r["count"], "changed": changed, "pushed": True, "dest": str(repo)}
 
 
 def export_json(cfg: dict, dest: Path = None, log=None) -> dict:
@@ -1199,7 +1256,7 @@ CATS_HTML = """{% extends "base.html" %}{% block title %}카테고리{% endblock
   <input type="hidden" name="kor" value="{{ c.category }}">
   <input type="text" name="slug" value="{{ c.slug }}" style="width:220px">
   <button class="btn ghost">저장</button></form></td>
-<td>{% if c.category in excluded %}<span class="badge missing">Jekyll 제외</span>{% endif %}</td></tr>
+<td>{% if c.is_excluded %}<span class="badge missing">Jekyll 제외</span>{% endif %}</td></tr>
 {% endfor %}
 </table>
 {% endblock %}"""
@@ -1225,6 +1282,13 @@ EXPORT_HTML = """{% extends "base.html" %}{% block title %}내보내기{% endblo
       DB 전체(글·이미지 메타·수정이력)를 JSON 한 파일로. 2차 가공/마이그레이션용.</p>
     <form method="post" action="/export/run"><input type="hidden" name="format" value="json">
     <button class="btn" onclick="this.textContent='내보내는 중...';">JSON 내보내기</button></form></div>
+  <div class="card"><h2 style="margin-top:0">🚀 GitHub Pages 배포</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+      Jekyll 내보내기 → 블로그 저장소 반영 → commit → push 원클릭.<br>
+      저장소: <code>{{ cfg.jekyll_repo_dir or '설정에서 지정 필요' }}</code></p>
+    <form method="post" action="/export/run"><input type="hidden" name="format" value="publish">
+    <button class="btn" onclick="this.textContent='배포 중... (이미지 푸시로 수 분 걸릴 수 있음)';"
+      {{ 'disabled' if not cfg.jekyll_repo_dir }}>블로그 배포</button></form></div>
 </div>
 <h2>Jekyll 내보내기 대상 미리보기 <span style="color:var(--muted);font-size:13px">
   — 포함 {{ inc_total }}개 / 제외 {{ exc_total }}개 (제외 목록은 설정에서 수정)</span></h2>
@@ -1249,6 +1313,11 @@ SETTINGS_HTML = """{% extends "base.html" %}{% block title %}설정{% endblock %
     <textarea name="excluded_categories" rows="3" style="width:100%">{{ cfg.excluded_categories|join(', ') }}</textarea></label>
   <label>Jekyll 이미지 base URL<br>
     <input type="text" name="jekyll_image_base_url" value="{{ cfg.jekyll_image_base_url }}" style="width:100%"></label>
+  <label>GitHub Pages 저장소 로컬 경로 (publish용)<br>
+    <input type="text" name="jekyll_repo_dir" value="{{ cfg.jekyll_repo_dir }}" style="width:100%"
+           placeholder="C:\\github\\username.github.io"></label>
+  <label><input type="checkbox" name="publish_after_sync" {{ 'checked' if cfg.publish_after_sync }}>
+    동기화 후 자동으로 블로그 배포 (변경이 있을 때만)</label>
   <div><button class="btn">저장</button></div>
 </form>
 <div class="card" style="margin-top:14px;color:var(--muted);font-size:13px;line-height:1.8">
@@ -1428,7 +1497,9 @@ def create_app(cfg: dict):
         for r in con.execute("SELECT category, COUNT(*) c FROM posts GROUP BY category ORDER BY c DESC"):
             cats.append({"category": r["category"], "c": r["c"], "slug": get_slug(con, r["category"] or "기타")})
         con.close()
-        excluded = {c.strip() for c in cfg.get("excluded_categories", [])}
+        excluded = {_norm_cat(c) for c in cfg.get("excluded_categories", [])}
+        for c in cats:
+            c["is_excluded"] = _norm_cat(c["category"]) in excluded
         return render_template("cats.html", active="cats", cats=cats, excluded=excluded,
                                saved=request.args.get("saved"), **side_counts())
 
@@ -1445,10 +1516,10 @@ def create_app(cfg: dict):
     @app.route("/export")
     def export_page():
         con = open_db(cfg)
-        excluded = {c.lower().replace(" ", "") for c in cfg.get("excluded_categories", [])}
+        excluded = {_norm_cat(c) for c in cfg.get("excluded_categories", [])}
         preview, inc_total, exc_total = [], 0, 0
         for r in con.execute("SELECT category, COUNT(*) c FROM posts GROUP BY category ORDER BY c DESC"):
-            inc = (r["category"] or "").lower().replace(" ", "") not in excluded
+            inc = _norm_cat(r["category"]) not in excluded
             preview.append({"category": r["category"], "c": r["c"], "included": inc})
             if inc:
                 inc_total += r["c"]
@@ -1462,12 +1533,17 @@ def create_app(cfg: dict):
     @app.route("/export/run", methods=["POST"])
     def export_run():
         fmt = request.form.get("format")
-        fn = {"jekyll": export_jekyll, "markdown": export_markdown, "json": export_json}.get(fmt)
+        fn = {"jekyll": export_jekyll, "markdown": export_markdown, "json": export_json,
+              "publish": publish_jekyll}.get(fmt)
         if not fn:
             return redirect(url_for("export_page", msg="알 수 없는 형식"))
         try:
             r = fn(cfg)
-            msg = f"{fmt} 내보내기 완료 — 글 {r['count']}개 → {r['dest']}"
+            if fmt == "publish":
+                msg = (f"블로그 배포 완료 — 글 {r['count']}개, 변경 {r['changed']}개 파일 push"
+                       if r["pushed"] else "변경 없음 — 배포 생략")
+            else:
+                msg = f"{fmt} 내보내기 완료 — 글 {r['count']}개 → {r['dest']}"
         except Exception as e:
             msg = f"내보내기 실패: {e}"
         return redirect(url_for("export_page", msg=msg))
@@ -1485,6 +1561,8 @@ def create_app(cfg: dict):
             cfg["excluded_categories"] = [c.strip() for c in
                                           request.form.get("excluded_categories", "").split(",") if c.strip()]
             cfg["jekyll_image_base_url"] = request.form.get("jekyll_image_base_url", "").strip()
+            cfg["jekyll_repo_dir"] = request.form.get("jekyll_repo_dir", "").strip()
+            cfg["publish_after_sync"] = bool(request.form.get("publish_after_sync"))
             save_config(cfg)
             saved = True
         return render_template("settings.html", active="settings", saved=saved,
@@ -1517,6 +1595,7 @@ def main():
     ep.add_argument("--format", choices=["jekyll", "markdown", "json"], required=True)
     ep.add_argument("--dest", help="출력 경로 (기본: archive/<blog>/exports/)")
 
+    sub.add_parser("publish", help="Jekyll 내보내기 후 GitHub Pages 저장소에 commit+push")
     sub.add_parser("stats", help="아카이브 통계")
     qp = sub.add_parser("search", help="제목·본문 검색")
     qp.add_argument("query")
@@ -1541,6 +1620,8 @@ def main():
     elif args.cmd == "export":
         fn = {"jekyll": export_jekyll, "markdown": export_markdown, "json": export_json}[args.format]
         fn(cfg, dest=Path(args.dest) if args.dest else None)
+    elif args.cmd == "publish":
+        publish_jekyll(cfg)
     elif args.cmd == "stats":
         s = get_stats(cfg)
         print(f"블로그: {cfg['blog_id']}")

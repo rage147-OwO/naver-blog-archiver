@@ -19,6 +19,7 @@
 | 네이버 재발행 | 글 페이지의 "재발행용 복사" → 글쓰기 창에 Ctrl+V로 서식·이미지 복원 (글쓰기 API는 2020년 종료라 클립보드 방식) |
 | 내보내기 | Jekyll(레거시 SavedPost 포맷 호환) / 순수 Markdown / JSON 덤프 |
 | 카테고리 slug | googletrans 제거 → 내장 한글 로마자 변환 + 웹 UI에서 직접 수정 가능 |
+| GitHub Pages 자동 배포 | `publish` 한 번으로 내보내기→블로그 저장소 반영→commit→push. 동기화 후 자동 배포 옵션 |
 
 ## 설치
 
@@ -44,6 +45,7 @@ python _code/blog_archiver.py export --format json       # DB 전체 덤프
 
 # 기타
 python _code/blog_archiver.py stats              # 아카이브 통계
+python _code/blog_archiver.py publish            # Jekyll 내보내기 → 블로그 저장소 commit+push
 python _code/blog_archiver.py search "검색어"     # 제목·본문 검색
 python _code/blog_archiver.py rebuild            # 저장된 HTML로 markdown 재생성 (재다운로드 없음)
 ```
@@ -62,6 +64,15 @@ archive/<blog_id>/
 
 - **백업은 전부 저장**된다. `excluded_categories` 설정은 Jekyll 내보내기에만 적용.
 - 이미지 파일명은 원본 URL 해시 기반 → 글이 수정돼도 기존 이미지는 재다운로드하지 않음.
+
+## GitHub Pages 자동 연동
+
+`config.json`의 `jekyll_repo_dir`에 블로그 저장소 로컬 경로를 지정하면:
+
+- `publish` 명령(또는 웹 UI 내보내기 페이지의 **블로그 배포** 버튼)이
+  `_posts/NaverBackup/`, `_images/`, `_pages/categories/`, `_includes/nav_list_main`
+  **관리 영역만** 통째로 교체한 뒤 commit·push한다. 직접 쓴 다른 글·파일은 건드리지 않는다.
+- `publish_after_sync: true`면 동기화에서 변경이 감지될 때 자동으로 배포까지 이어진다.
 
 ## 레거시 (v1)
 
