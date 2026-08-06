@@ -870,6 +870,20 @@ def publish_jekyll(cfg: dict, log=None) -> dict:
     if not repo.is_dir() or not (repo / ".git").exists():
         raise RuntimeError(f"jekyll_repo_dir가 git 저장소가 아닙니다: {repo} (설정에서 지정하세요)")
 
+    def git(*args):
+        p = subprocess.run(["git", "-C", str(repo), *args],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if p.returncode != 0:
+            raise RuntimeError(f"git {args[0]} 실패: {(p.stderr or p.stdout).strip()[:400]}")
+        return p.stdout
+
+    # 원격이 앞서 있으면 push가 거부되므로 먼저 당겨온다 (미커밋 변경은 autostash)
+    branch = git("rev-parse", "--abbrev-ref", "HEAD").strip()
+    try:
+        git("pull", "--rebase", "--autostash", "origin", branch)
+    except RuntimeError as e:
+        log(f"[경고] 원격 pull 실패, 계속 진행: {str(e)[:200]}")
+
     r = export_jekyll(cfg, log=log)
     src = Path(r["dest"])
 
@@ -883,13 +897,6 @@ def publish_jekyll(cfg: dict, log=None) -> dict:
     (repo / "_includes").mkdir(exist_ok=True)
     shutil.copyfile(src / "nav_list_main", repo / "_includes" / "nav_list_main")
 
-    def git(*args):
-        p = subprocess.run(["git", "-C", str(repo), *args],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if p.returncode != 0:
-            raise RuntimeError(f"git {args[0]} 실패: {(p.stderr or p.stdout).strip()[:400]}")
-        return p.stdout
-
     git("add", "-A", "--", *managed)
     changed = len([l for l in git("status", "--porcelain", "--", *managed).splitlines() if l.strip()])
     if changed == 0:
@@ -897,7 +904,7 @@ def publish_jekyll(cfg: dict, log=None) -> dict:
         return {"count": r["count"], "changed": 0, "pushed": False, "dest": str(repo)}
     git("commit", "-m", f"네이버 블로그 동기화 {datetime.now(KST):%Y-%m-%d %H:%M} — 글 {r['count']}개")
     log(f"커밋 완료 (변경 {changed}개 파일) — push 중...")
-    git("push", "origin", "HEAD")
+    git("push", "origin", branch)
     log(f"배포 완료: 글 {r['count']}개 → {repo}")
     return {"count": r["count"], "changed": changed, "pushed": True, "dest": str(repo)}
 
