@@ -21,4 +21,7 @@ if credentials:
     )
     os.environ["GIT_TERMINAL_PROMPT"] = "0"
 
-app = blog_archiver.create_app(blog_archiver.load_config())
+app = blog_archiver.create_app(
+    blog_archiver.load_config(),
+    admin_origin=os.environ.get("ARCHIVER_ADMIN_ORIGIN"),
+)
