@@ -1093,6 +1093,11 @@ aside a.nav:hover{background:var(--card2);text-decoration:none}
 aside a.nav.active{background:var(--card2);color:var(--green);font-weight:bold}
 aside .foot{margin-top:auto;color:var(--muted);font-size:11px;line-height:1.7}
 main{flex:1;padding:26px 34px;max-width:1150px}
+.refresh-page{display:grid;align-items:center;justify-items:center}
+.refresh-page main{width:min(100%,36rem);padding:24px}
+.refresh-page .card{padding:clamp(20px,5vw,32px)}
+.refresh-page p{font-size:1rem;line-height:1.65;margin-bottom:12px}
+.refresh-page button:focus-visible{outline:2px solid var(--green);outline-offset:4px}
 h1{font-size:21px;margin-bottom:18px} h2{font-size:16px;margin:20px 0 10px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
 .card{background:var(--card);border-radius:12px;padding:16px 18px}
@@ -1149,7 +1154,8 @@ input:focus,select:focus,textarea:focus{outline:1px solid var(--green)}
              padding:7px 14px;cursor:pointer;font-family:inherit;font-size:13px}
 .tabs button.on{background:var(--green);color:#10231b;font-weight:bold}
 </style></head>
-<body>
+<body{% if active == 'refresh' %} class="refresh-page"{% endif %}>
+{% if active != 'refresh' %}
 <aside>
   <div class="logo">네이버 블로그<br>아카이버 <span class="dot">●</span></div>
   <div class="blogid">{{ cfg.blog_id }}</div>
@@ -1162,8 +1168,75 @@ input:focus,select:focus,textarea:focus{outline:1px solid var(--green)}
   <div class="foot">글 {{ side_posts }} · 이미지 {{ side_images }}<br>
     <a href="https://blog.naver.com/{{ cfg.blog_id }}" target="_blank">블로그 열기 ↗</a></div>
 </aside>
+{% endif %}
 <main>{% block body %}{% endblock %}</main>
 </body></html>"""
+
+REFRESH_HTML = """{% extends "base.html" %}{% block title %}글 업데이트{% endblock %}
+{% block body %}
+<section class="card" aria-labelledby="refresh-title">
+  <h1 id="refresh-title">내 블로그 글 업데이트</h1>
+  <p>{{ cfg.blog_id }}의 새 글과 수정된 글을 확인하고 GitHub Pages에 반영합니다.</p>
+  <p>글이 많으면 시간이 걸릴 수 있습니다.</p>
+  <button class="btn" id="refresh-posts" type="button">글 업데이트</button>
+  <p id="refresh-status" role="status" style="margin:16px 0 0;color:var(--muted)">상태 확인 중</p>
+</section>
+<script>
+const refreshButton = document.getElementById('refresh-posts');
+const refreshStatus = document.getElementById('refresh-status');
+let statusTimer;
+
+function describeRefresh(state) {
+  if (state.running) {
+    return state.total ? `글 확인 중 · ${state.done}/${state.total}개` : '글 목록 또는 게시 상태 확인 중';
+  }
+  if (state.error) return '업데이트 실패 · ' + state.error;
+  if (state.stop) return '업데이트가 중단됐습니다.';
+  if (!state.result) return '업데이트할 준비가 됐습니다.';
+  const result = state.result;
+  const publication = result.publication;
+  const changes = `새 글 ${result.added}개 · 수정 ${result.updated}개 · 수집 실패 ${result.failed}개`;
+  if (!publication || publication.skipped) return changes + ' · 게시 결과 확인 필요';
+  return changes + (publication.pushed ? ' · GitHub Pages에 반영 요청 완료' : ' · 게시 변경 없음');
+}
+
+async function checkRefresh() {
+  clearTimeout(statusTimer);
+  try {
+    const response = await fetch({{ url_for('sync_status') | tojson }}, {cache: 'no-store'});
+    if (!response.ok) throw new Error();
+    const state = await response.json();
+    refreshStatus.textContent = describeRefresh(state);
+    refreshButton.disabled = state.running;
+    if (state.running) statusTimer = setTimeout(checkRefresh, 1500);
+  } catch {
+    refreshStatus.textContent = '업데이트 상태를 확인하지 못했습니다. 다시 시도해 주세요.';
+    refreshButton.disabled = false;
+  }
+}
+
+refreshButton.addEventListener('click', async () => {
+  clearTimeout(statusTimer);
+  refreshButton.disabled = true;
+  refreshStatus.textContent = '업데이트 요청 중';
+  try {
+    const response = await fetch({{ url_for('sync_start') | tojson }}, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode: 'full'})
+    });
+    if (!response.ok && response.status !== 409) throw new Error();
+    await checkRefresh();
+  } catch {
+    refreshStatus.textContent = '업데이트 요청을 확인하지 못했습니다. 다시 시도해 주세요.';
+    refreshButton.disabled = false;
+  }
+});
+
+refreshButton.disabled = true;
+checkRefresh();
+</script>
+{% endblock %}"""
 
 DASH_HTML = """{% extends "base.html" %}{% block title %}대시보드{% endblock %}
 {% block body %}
@@ -1449,7 +1522,7 @@ def create_app(cfg: dict):
     app.jinja_loader = DictLoader({
         "base.html": BASE_HTML, "dash.html": DASH_HTML, "posts.html": POSTS_HTML,
         "post.html": POST_HTML, "sync.html": SYNC_HTML, "cats.html": CATS_HTML,
-        "export.html": EXPORT_HTML, "settings.html": SETTINGS_HTML,
+        "export.html": EXPORT_HTML, "settings.html": SETTINGS_HTML, "refresh.html": REFRESH_HTML,
     })
 
     def side_counts():
@@ -1470,6 +1543,8 @@ def create_app(cfg: dict):
 
     @app.route("/")
     def dash():
+        if cfg.get("managed_pages_publish") and cfg.get("publish_after_sync"):
+            return render_template("refresh.html", active="refresh", cfg=cfg)
         s = get_stats(cfg)
         con = open_db(cfg)
         recent = []
@@ -1578,7 +1653,7 @@ def create_app(cfg: dict):
 
     @app.route("/api/sync/start", methods=["POST"])
     def sync_start():
-        body = request.get_json(silent=True) or {}
+        body = request.get_json(silent=True)
         if not isinstance(body, dict):
             return jsonify({"error": "잘못된 요청"}), 400
         full = body.get("mode") == "full"

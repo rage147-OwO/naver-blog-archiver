@@ -1,0 +1,8 @@
+redir /naver-blog-zip /naver-blog-zip/ 308
+handle_path /naver-blog-zip/* {
+	reverse_proxy 127.0.0.1:8768 {
+		header_up X-Backup-Client {remote_host}
+		header_up -Authorization
+		header_up -Cookie
+	}
+}

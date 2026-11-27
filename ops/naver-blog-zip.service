@@ -1,0 +1,26 @@
+[Unit]
+Description=Public Naver Blog ZIP export
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+DynamicUser=yes
+WorkingDirectory=/opt/naver-blog-zip
+RuntimeDirectory=naver-blog-zip
+RuntimeDirectoryMode=0700
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+ExecStart=/opt/naver-blog-zip/.venv/bin/python -m gunicorn --bind 127.0.0.1:8768 --workers 1 --threads 4 public_backup:app
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+InaccessiblePaths=/var/lib/naver-blog-archiver /var/lib/private/naver-blog-archiver /etc/naver-blog-archiver
+PrivateTmp=yes
+MemoryMax=1G
+CPUQuota=100%
+Restart=on-failure
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

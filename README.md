@@ -88,6 +88,8 @@ googletrans 의존(빈번한 장애), 글 하나 실패 시 전체 중단, blog_
 
 ## Oracle 자동 운영
 
+- SSH 연결로 관리 화면을 열면 **글 업데이트** 버튼으로 전체 본문을 확인하고
+  달라진 글을 GitHub Pages에 반영할 수 있다.
 - GitHub Pages 공개 블로그는 `rage147-OwO/rage147-OwO.github.io`의 `master`에서 발행한다.
   Oracle의 `naver-blog-archiver-sync.timer`는 매일 오전 3시(한국 시간)에 전체 본문을 확인한다.
   목록 검증에 실패하면 게시를 중단한다. 개별 글 수집 실패 시 기존 게시본을 보존한다.
@@ -100,3 +102,16 @@ googletrans 의존(빈번한 장애), 글 하나 실패 시 전체 중단, blog_
 - 프로그램과 릴리스는 `/opt/naver-blog-archiver`에 있고, 설정·DB·이미지는
   `/var/lib/naver-blog-archiver`에 있다. GitHub Pages 쓰기 키는 Oracle 서비스에만,
   Oracle 배포 키는 GitHub의 `production` 환경에만 제공한다.
+
+## 공개 블로그 ZIP 백업
+
+방문자는 네이버 블로그 주소와 선택한 기간을 입력해 공개 글을 Markdown과 이미지가 담긴
+ZIP으로 받을 수 있다. 한 번에 최대 200개 글을 처리하며, 완료된 ZIP의 다운로드 기한은
+30분이다. 실패한 글과 생략된 이미지 수는 결과와 ZIP의 `README.md`에 표시된다.
+
+로컬에서는 의존성을 설치하고 `_code`에서 `python -m flask --app public_backup run`으로 실행한다.
+Oracle에서는 `_code/public_backup.py`, `_code/blog_archiver.py`, `_code/templates/`을 별도 설치 경로
+`/opt/naver-blog-zip`에 배치한다. 해당 디렉터리의 가상환경에 의존성과 Gunicorn을 설치하고
+`ops/naver-blog-zip.service`를 활성화한다. HTTPS 사이트 블록에
+`ops/naver-blog-zip.caddy`의 경로를 연결한다. ZIP 서비스는 별도 프로세스에서 실행되며
+개인 아카이브와 게시 자격 증명에 접근하지 않는다.

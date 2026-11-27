@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="네이버 블로그의 공개 글과 이미지를 ZIP으로 백업합니다.">
+  <title>네이버 블로그 백업</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, "Malgun Gothic", sans-serif;
+      color: #142d27;
+      background: #edf5ef;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px 16px; }
+    main { width: min(100%, 36rem); }
+    .panel {
+      background: #fff;
+      border: 1px solid #c9dcd0;
+      border-top: 4px solid #16704e;
+      border-radius: 18px;
+      padding: clamp(22px, 6vw, 44px);
+      box-shadow: 0 18px 80px -32px #12432c55;
+    }
+    h1 { margin: 0; font-size: clamp(1.65rem, 5vw, 2.2rem); line-height: 1.25; }
+    p { line-height: 1.65; margin: 12px 0 0; color: #486256; }
+    form { margin-top: 28px; }
+    label { display: block; font-weight: 650; margin-bottom: 7px; }
+    input {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: 1px solid #9bb6a6;
+      border-radius: 8px;
+      background: #fbfdfb;
+      color: inherit;
+      font: inherit;
+    }
+    :focus-visible { outline: 3px solid #1f8b65; outline-offset: 3px; }
+    details { margin-top: 16px; }
+    summary { cursor: pointer; width: fit-content; font-weight: 600; }
+    .dates { margin-top: 13px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .dates div { min-width: 0; }
+    button, .download {
+      display: inline-block;
+      margin-top: 20px;
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 18px;
+      background: #136444;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    button:hover, .download:hover { background: #0a5237; }
+    button:disabled { opacity: .55; cursor: wait; }
+    [hidden] { display: none !important; }
+    .status { margin-top: 18px; }
+    .status:empty { display: none; }
+    progress { width: 100%; margin-top: 12px; accent-color: #16704e; }
+    .notice { margin-top: 24px; padding-top: 16px; border-top: 1px solid #d9e7dc; font-size: .9rem; }
+    @media (max-width: 360px) { .dates { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main class="panel">
+  <h1>네이버 블로그 백업</h1>
+  <p>내 블로그의 공개 글을 Markdown과 이미지로 묶어 ZIP으로 저장합니다.</p>
+  <form id="backup-form">
+    <label for="blog-url">네이버 블로그 주소</label>
+    <input id="blog-url" name="url" type="text" inputmode="url" autocomplete="url" required maxlength="500"
+           placeholder="https://blog.naver.com/내블로그">
+    <details>
+      <summary>기간 선택</summary>
+      <div class="dates">
+        <div><label for="start">시작일</label><input id="start" name="start" type="date"></div>
+        <div><label for="end">종료일</label><input id="end" name="end" type="date"></div>
+      </div>
+    </details>
+    <button id="submit-backup" type="submit">ZIP 만들기</button>
+  </form>
+  <p class="status" id="backup-status" role="status"></p>
+  <progress id="backup-progress" aria-label="백업 진행률" hidden></progress>
+  <a class="download" id="backup-download" hidden>ZIP 다운로드</a>
+  <p class="notice">한 번에 공개 글 {{ max_posts }}개까지 백업할 수 있습니다. ZIP은 생성 후 30분 동안 받을 수 있습니다. 동영상과 첨부파일은 원본 글에서 확인할 수 있습니다.</p>
+</main>
+<script>
+const form = document.getElementById('backup-form');
+const button = document.getElementById('submit-backup');
+const status = document.getElementById('backup-status');
+const progress = document.getElementById('backup-progress');
+const download = document.getElementById('backup-download');
+const tokenKey = 'naver-backup-job';
+let timer;
+
+function finish() {
+  button.disabled = false;
+  progress.hidden = true;
+}
+
+async function poll(token) {
+  try {
+    const response = await fetch('api/jobs/' + encodeURIComponent(token), {cache: 'no-store'});
+    const job = await response.json();
+    if (!response.ok || job.state === 'failed') {
+      sessionStorage.removeItem(tokenKey);
+      status.textContent = job.error || '백업 상태를 확인하지 못했습니다.';
+      finish();
+      return;
+    }
+    if (job.state === 'ready') {
+      const result = job.result;
+      const skipped = result.skipped_posts + result.skipped_images;
+      status.textContent = '글 ' + result.posts + '개 백업 완료' + (skipped
+        ? ' · 가져오지 못한 글 ' + result.skipped_posts + '개 · 생략된 이미지 ' + result.skipped_images + '개'
+        : '');
+      download.href = 'api/jobs/' + encodeURIComponent(token) + '/download';
+      download.hidden = false;
+      finish();
+      return;
+    }
+    progress.hidden = false;
+    if (job.total) {
+      progress.max = job.total;
+      progress.value = job.done;
+    } else {
+      progress.removeAttribute('value');
+    }
+    status.textContent = job.state === 'queued' ? '백업 순서를 기다리고 있습니다.'
+      : (job.total ? '백업 중 · ' + job.done + '/' + job.total + '개' : '공개 글 목록을 확인하고 있습니다.');
+    timer = setTimeout(() => poll(token), 1700);
+  } catch {
+    status.textContent = '연결이 끊겨 다시 확인하고 있습니다.';
+    timer = setTimeout(() => poll(token), 3500);
+  }
+}
+
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (button.disabled) return;
+  clearTimeout(timer);
+  download.hidden = true;
+  button.disabled = true;
+  status.textContent = '백업을 요청하고 있습니다.';
+  try {
+    const response = await fetch('api/jobs', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.fromEntries(new FormData(form)))
+    });
+    const job = await response.json();
+    if (!response.ok) {
+      status.textContent = job.error || '백업 요청에 실패했습니다.';
+      finish();
+      return;
+    }
+    sessionStorage.setItem(tokenKey, job.token);
+    poll(job.token);
+  } catch {
+    status.textContent = '백업 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+    finish();
+  }
+});
+
+const previousToken = sessionStorage.getItem(tokenKey);
+if (previousToken) {
+  button.disabled = true;
+  poll(previousToken);
+}
+</script>
+</body>
+</html>
