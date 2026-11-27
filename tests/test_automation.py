@@ -114,6 +114,14 @@ class PagesPublicationTest(unittest.TestCase):
         self.assertEqual(second["changed"], 0)
         self.assertEqual(git(self.remote, "rev-parse", "master"), first_tip)
 
+    def test_numeric_category_stays_a_string_in_jekyll(self):
+        self.add_post(101, "Numeric category", "Body")
+        with closing(archiver.open_db(self.cfg)) as database, database:
+            database.execute("INSERT INTO category_map(kor, slug) VALUES('Saved', '123')")
+        self.publish()
+        self.assertIn('categories:\n - "123"\n', self.show(self.old[101]))
+        self.assertIn('site.categories["123"]', self.show("_pages/categories/category-123.md"))
+
     def test_failed_push_is_retried_on_next_run(self):
         self.add_post(101, "Updated title", "Retry this change")
         previous_tip = git(self.remote, "rev-parse", "master")

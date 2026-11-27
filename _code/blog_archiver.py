@@ -886,7 +886,8 @@ def export_jekyll(cfg: dict, dest: Path = None, log=None, *, posts=None,
         md = p["markdown"].replace("](images/", f"]({base_url}/")
         md = md.replace('src="images/', f'src="{base_url}/')
         title_value = json.dumps(p["title"], ensure_ascii=False)
-        front = (f"---\ntitle: {title_value}\ndate: {date}\ncategories:\n - {slug}\n"
+        category_value = json.dumps(slug, ensure_ascii=False)
+        front = (f"---\ntitle: {title_value}\ndate: {date}\ncategories:\n - {category_value}\n"
                  f"naver_url: {p['url']}\n---\n\n")
         post_file = dest / "_posts" / f"{fname}.md"
         post_file.write_text(front + md, encoding="utf-8")
@@ -903,7 +904,7 @@ def export_jekyll(cfg: dict, dest: Path = None, log=None, *, posts=None,
         (dest / "_pages" / "categories" / f"category-{slug}.md").write_text(
             "---\ntitle: \"" + slug + "\"\nlayout: archive\npermalink: categories/" + slug +
             "\nauthor_profile: true\nsidebar_main: true\n---\n\n"
-            "{% assign posts = site.categories." + slug + " %}\n"
+            "{% assign posts = site.categories[" + json.dumps(slug, ensure_ascii=False) + "] %}\n"
             "{% for post in posts %} {% include archive-single2.html type=page.entries_layout %} {% endfor %}",
             encoding="utf-8")
     (dest / "_pages" / "categories" / "CategoryEng.md").write_text("\n".join(slugs), encoding="utf-8")
