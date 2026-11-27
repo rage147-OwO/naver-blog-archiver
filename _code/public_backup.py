@@ -1,9 +1,11 @@
 """On-demand ZIP downloads of public Naver Blog posts."""
 
+import errno
 import json
 import os
 import re
 import secrets
+import shutil
 import tempfile
 import threading
 import time
@@ -32,13 +34,15 @@ IMAGE_TYPES = {
     "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif",
     "image/webp": ".webp", "image/bmp": ".bmp",
 }
-MAX_POSTS = 200
-MAX_IMAGE_BYTES = 80 * 1024 * 1024
-MAX_TEXT_BYTES = 20 * 1024 * 1024
+MIN_DISK_FREE_BYTES = 2 * 1024**3
+TEXT_DISK_HEADROOM_BYTES = 256 * 1024**2
+REQUEST_DEADLINE_SECONDS = 30
+RETRYABLE_HTTP_STATUS = {429, 500, 502, 503, 504}
 MAX_PENDING = 3
 MAX_JOBS = 8
 JOB_TTL = 30 * 60
 CLIENT_COOLDOWN = 60
+DISK_SPACE_ERROR = "서버 저장 공간이 부족해 ZIP을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
 class BackupError(RuntimeError):
@@ -96,33 +100,49 @@ class BackupClient(NaverClient):
         super().__init__(blog_id)
         self.s.trust_env = False
         self.s.headers["User-Agent"] = "NaverBlogZipBackup/1.0"
-        self.deadline = time.monotonic() + 15 * 60
         self.last_request = 0.0
 
     def download(self, url, max_bytes, image=False):
-        if time.monotonic() >= self.deadline:
-            raise BackupError("작업 시간이 초과됐습니다. 백업할 날짜 범위를 줄여 주세요.")
+        for attempt in range(3):
+            try:
+                return self._download_once(url, max_bytes, image)
+            except requests.RequestException as error:
+                response = error.response
+                if attempt == 2 or (response is not None and response.status_code not in RETRYABLE_HTTP_STATUS):
+                    raise
+                delay = 2 ** (attempt + 1)
+                if response is not None:
+                    retry_after = response.headers.get("Retry-After", "")
+                    if retry_after.isascii() and retry_after.isdecimal():
+                        delay = max(delay, int(retry_after))
+                if delay > 120:
+                    raise BackupError("네이버에서 백업 요청을 잠시 제한했습니다. 잠시 후 다시 시도해 주세요.") from error
+                time.sleep(delay)
+
+    def _download_once(self, url, max_bytes, image):
         time.sleep(max(0.0, self.last_request + self.delay - time.monotonic()))
         self.last_request = time.monotonic()
         with self.s.get(url, allow_redirects=False, stream=True, timeout=(5, 10)) as response:
             if response.status_code != 200:
-                raise requests.HTTPError(f"HTTP {response.status_code}")
+                raise requests.HTTPError(f"HTTP {response.status_code}", response=response)
             mime = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
             if image and mime not in IMAGE_TYPES:
                 raise ValueError("Unsupported image")
             data = bytearray()
             for chunk in response.iter_content(65536):
-                if time.monotonic() >= self.deadline:
-                    raise BackupError("작업 시간이 초과됐습니다. 백업할 날짜 범위를 줄여 주세요.")
+                if time.monotonic() - self.last_request >= REQUEST_DEADLINE_SECONDS:
+                    raise requests.Timeout("Response deadline exceeded")
                 if len(data) + len(chunk) > max_bytes:
                     raise ValueError("Response is too large")
                 data.extend(chunk)
             return bytes(data), mime
 
     def _get(self, url, **_):
-        if urlsplit(url).netloc not in BLOG_HOSTS:
+        link = urlsplit(url)
+        if link.netloc not in BLOG_HOSTS:
             raise ValueError("Unsupported blog host")
-        return PageResponse(self.download(url, 3 * 1024 * 1024)[0])
+        max_mib = 8 if link.path == "/PostView.naver" else 3
+        return PageResponse(self.download(url, max_mib * 1024**2)[0])
 
     def image(self, url):
         link = urlsplit(url)
@@ -134,9 +154,7 @@ class BackupClient(NaverClient):
 def zip_blog(blog_id, start, end, destination, progress):
     client = BackupClient(blog_id)
     try:
-        posts = [post for post in client._list_posts_mobile(verify=True) if post["public"]]
-        if len({post["log_no"] for post in posts}) != len(posts):
-            raise BackupError("글 목록이 조회 중에 바뀌었습니다. 잠시 후 다시 시도해 주세요.")
+        posts = [post for post in client._list_posts_mobile(verify=True, max_pages=None) if post["public"]]
         if start or end:
             selected = []
             for post in posts:
@@ -148,18 +166,21 @@ def zip_blog(blog_id, start, end, destination, progress):
             posts = selected
         if not posts:
             raise BackupError("이 기간에 백업할 공개 글을 찾지 못했습니다.")
-        if len(posts) > MAX_POSTS:
-            raise BackupError(f"공개 글이 {len(posts)}개입니다. 한 번에 {MAX_POSTS}개까지 백업할 수 있도록 날짜를 나눠 주세요.")
         return write_backup(client, blog_id, posts, destination, progress)
     finally:
         client.s.close()
 
 
+def has_archive_space(destination, required_bytes):
+    return shutil.disk_usage(destination.parent).free - required_bytes >= MIN_DISK_FREE_BYTES
+
+
 def write_backup(client, blog_id, posts, destination, progress):
     skipped_posts, skipped_images = [], 0
-    text_bytes, image_bytes = 0, 0
     rows = []
-    with ZipFile(destination, "w", compression=ZIP_DEFLATED) as archive:
+    if not has_archive_space(destination, 0):
+        raise BackupError(DISK_SPACE_ERROR)
+    with ZipFile(destination, "w", compression=ZIP_DEFLATED, allowZip64=True) as archive:
         progress(0, len(posts))
         for index, post in enumerate(posts, start=1):
             log_no = post["log_no"]
@@ -176,18 +197,17 @@ def write_backup(client, blog_id, posts, destination, progress):
                 continue
 
             image_files, saved = [], {}
-            for image_index, url in enumerate(images):
+            for url in images:
                 if url not in saved:
                     saved[url] = None
-                    if image_index < 20 and image_bytes < MAX_IMAGE_BYTES:
+                    if has_archive_space(destination, TEXT_DISK_HEADROOM_BYTES):
                         try:
                             data, mime = client.image(url)
-                            if image_bytes + len(data) <= MAX_IMAGE_BYTES:
+                            if has_archive_space(destination, TEXT_DISK_HEADROOM_BYTES + len(data)):
                                 name = image_filename(url, IMAGE_TYPES[mime])
                                 archive.writestr(f"images/{log_no}/{name}", data, compress_type=ZIP_STORED)
                                 saved[url] = name
-                                image_bytes += len(data)
-                        except (requests.RequestException, ValueError):
+                        except (requests.RequestException, BackupError, ValueError):
                             pass
                 name = saved[url]
                 skipped_images += name is None
@@ -198,9 +218,8 @@ def write_backup(client, blog_id, posts, destination, progress):
             filename = f"{published}-{log_no}-{sanitize_filename(title, maxlen=56)}.md"
             _, markdown = build_outputs(main_html, log_no, image_files, source)
             document = f"# {title}\n\n> 발행일 {published}\n> 원본 {source}\n\n{markdown}\n".encode()
-            text_bytes += len(document)
-            if text_bytes > MAX_TEXT_BYTES:
-                raise BackupError("글 본문 용량이 너무 큽니다. 백업할 날짜 범위를 줄여 주세요.")
+            if not has_archive_space(destination, len(document)):
+                raise BackupError(DISK_SPACE_ERROR)
             archive.writestr(filename, document)
             rows.append((title, filename))
             progress(index, len(posts))
@@ -215,7 +234,10 @@ def write_backup(client, blog_id, posts, destination, progress):
         ]
         if skipped_posts:
             readme += ["", "## 가져오지 못한 글", *skipped_posts]
-        archive.writestr("README.md", "\n".join(readme) + "\n")
+        summary = ("\n".join(readme) + "\n").encode()
+        if not has_archive_space(destination, len(summary)):
+            raise BackupError(DISK_SPACE_ERROR)
+        archive.writestr("README.md", summary)
     return {"posts": len(rows), "skipped_posts": len(skipped_posts), "skipped_images": skipped_images}
 
 
@@ -253,7 +275,7 @@ def create_app(exporter=zip_blog):
         with lock:
             job.state = "running"
         try:
-            directory = tempfile.TemporaryDirectory(prefix="zip-", dir=os.environ.get("RUNTIME_DIRECTORY"))
+            directory = tempfile.TemporaryDirectory(prefix="zip-", dir=os.environ.get("CACHE_DIRECTORY"))
             with lock:
                 job.directory = directory
             result = exporter(job.blog_id, start, end, Path(directory.name) / "backup.zip", progress)
@@ -262,10 +284,13 @@ def create_app(exporter=zip_blog):
         except Exception as error:
             if not isinstance(error, BackupError):
                 app.logger.exception("Could not build a public blog backup")
+            message = "네이버에서 데이터를 가져오지 못했습니다. 주소를 확인하고 다시 시도해 주세요."
+            if isinstance(error, BackupError):
+                message = str(error)
+            elif isinstance(error, OSError) and error.errno == errno.ENOSPC:
+                message = DISK_SPACE_ERROR
             with lock:
-                job.error = str(error) if isinstance(error, BackupError) else (
-                    "네이버에서 데이터를 가져오지 못했습니다. 주소를 확인하고 다시 시도해 주세요."
-                )
+                job.error = message
                 job.state = "failed"
                 directory, job.directory = job.directory, None
             if directory:
@@ -288,7 +313,7 @@ def create_app(exporter=zip_blog):
 
     @app.get("/")
     def index():
-        return render_template("public_backup.html", max_posts=MAX_POSTS)
+        return render_template("public_backup.html")
 
     @app.post("/api/jobs")
     def submit():

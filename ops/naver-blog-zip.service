@@ -7,10 +7,11 @@ After=network-online.target
 Type=exec
 DynamicUser=yes
 WorkingDirectory=/opt/naver-blog-zip
-RuntimeDirectory=naver-blog-zip
-RuntimeDirectoryMode=0700
+CacheDirectory=naver-blog-zip
+CacheDirectoryMode=0700
 Environment=PYTHONDONTWRITEBYTECODE=1
 UMask=0077
+ExecStartPre=/usr/bin/find ${CACHE_DIRECTORY} -mindepth 1 -maxdepth 1 -type d -name zip-* -exec /usr/bin/rm -rf -- {} +
 ExecStart=/opt/naver-blog-zip/.venv/bin/python -m gunicorn --bind 127.0.0.1:8768 --workers 1 --threads 4 public_backup:app
 NoNewPrivileges=yes
 ProtectHome=yes

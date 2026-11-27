@@ -105,9 +105,10 @@ googletrans 의존(빈번한 장애), 글 하나 실패 시 전체 중단, blog_
 
 ## 공개 블로그 ZIP 백업
 
-방문자는 네이버 블로그 주소와 선택한 기간을 입력해 공개 글을 Markdown과 이미지가 담긴
-ZIP으로 받을 수 있다. 한 번에 최대 200개 글을 처리하며, 완료된 ZIP의 다운로드 기한은
-30분이다. 실패한 글과 생략된 이미지 수는 결과와 ZIP의 `README.md`에 표시된다.
+방문자는 네이버 블로그 주소를 입력해 공개 글 전체를 Markdown과 이미지가 담긴 ZIP 하나로
+받을 수 있다. 기간 입력은 선택 사항이다. 작업을 시작한 페이지의 주소로 진행 상황을
+다시 확인할 수 있으며, 완료된 ZIP의 다운로드 기한은 30분이다.
+실패한 글과 생략된 이미지 수는 결과와 ZIP의 `README.md`에 표시된다.
 
 로컬에서는 의존성을 설치하고 `_code`에서 `python -m flask --app public_backup run`으로 실행한다.
 Oracle에서는 `_code/public_backup.py`, `_code/blog_archiver.py`, `_code/templates/`을 별도 설치 경로
@@ -115,3 +116,5 @@ Oracle에서는 `_code/public_backup.py`, `_code/blog_archiver.py`, `_code/templ
 `ops/naver-blog-zip.service`를 활성화한다. HTTPS 사이트 블록에
 `ops/naver-blog-zip.caddy`의 경로를 연결한다. ZIP 서비스는 별도 프로세스에서 실행되며
 개인 아카이브와 게시 자격 증명에 접근하지 않는다.
+큰 ZIP은 서비스의 디스크 캐시에 생성한다. 디스크 여유 공간이 부족하면 이미지보다
+본문 저장을 우선한다.

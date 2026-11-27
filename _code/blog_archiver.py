@@ -284,9 +284,10 @@ class NaverClient:
             raise RuntimeError("네이버 모바일/데스크톱 목록 불일치")
         return [post for post in mobile if post["public"]]
 
-    def _list_posts_mobile(self, verify=False):
+    def _list_posts_mobile(self, verify=False, *, max_pages=300):
         items, page = [], 1
-        while page <= 300:
+        seen = set()
+        while max_pages is None or page <= max_pages:
             url = (f"https://m.blog.naver.com/api/blogs/{self.blog_id}/post-list"
                    f"?categoryNo=0&itemCount=30&page={page}")
             data = self._get(url).json()
@@ -299,6 +300,11 @@ class NaverClient:
             for it in batch:
                 if verify and not isinstance(it.get("allOpenPost"), bool):
                     raise RuntimeError("네이버 글 공개 여부를 확인할 수 없습니다")
+                log_no = int(it["logNo"])
+                if max_pages is None:
+                    if log_no in seen:
+                        raise RuntimeError("네이버 글 목록이 조회 중에 반복됐습니다")
+                    seen.add(log_no)
                 public = it.get("allOpenPost") is True and not any(
                     it.get(flag) for flag in ("notOpen", "buddyOpen", "bothBuddyOpen", "postBlocked")
                 )
@@ -306,7 +312,7 @@ class NaverClient:
                 published = (datetime.fromtimestamp(ts / 1000, KST).isoformat(timespec="seconds")
                              if isinstance(ts, (int, float)) else "")
                 items.append({
-                    "log_no": int(it["logNo"]),
+                    "log_no": log_no,
                     "title": html_mod.unescape((it.get("titleWithInspectMessage") or "").strip()),
                     "category": (it.get("categoryName") or "").strip(),
                     "category_no": it.get("categoryNo"),
@@ -320,7 +326,7 @@ class NaverClient:
                 })
             page += 1
             time.sleep(0.2)
-        if verify and page > 300:
+        if verify and max_pages is not None and page > max_pages:
             raise RuntimeError("네이버 모바일 전체 목록 범위를 벗어났습니다")
         if not items and not verify:
             raise RuntimeError("모바일 API가 빈 목록을 반환")
