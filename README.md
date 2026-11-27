@@ -85,3 +85,18 @@ googletrans 의존(빈번한 장애), 글 하나 실패 시 전체 중단, blog_
 - 요청 간격 기본 0.5초. 네이버 서버에 부담을 주지 않도록 과하게 줄이지 말 것.
 - 본인 블로그 백업 용도로 만들어졌다. 타인 블로그의 대량 수집은 이용약관을 확인할 것.
 - 동영상·첨부파일·스티커는 다운로드하지 않고 DB의 `media` 테이블에 존재만 기록된다.
+
+## Oracle 자동 운영
+
+- GitHub Pages 공개 블로그는 `rage147-OwO/rage147-OwO.github.io`의 `master`에서 발행한다.
+  Oracle의 `naver-blog-archiver-sync.timer`는 매일 오전 3시(한국 시간)에 전체 본문을 확인한다.
+  목록 검증에 실패하면 게시를 중단한다. 개별 글 수집 실패 시 기존 게시본을 보존한다.
+  삭제·비공개가 확인된 글은 최신 공개 트리에서 내리고, Oracle 보관본과 과거 Git 이력에 남긴다.
+- 일정 외에 실행하려면 Oracle에서 `sudo systemctl start naver-blog-archiver-sync.service`를 실행한다.
+  결과는 `sudo journalctl -u naver-blog-archiver-sync.service`에서 확인한다.
+- 프로그램 저장소의 `master`에 푸시하면 GitHub Actions의 **Deploy to Oracle**이 해당 SHA를 배포한다.
+  실행 결과는 Actions에서, Oracle의 배포 SHA는 `/opt/naver-blog-archiver/deployed-sha`에서 확인한다.
+  새 릴리스가 상태 확인에 실패하면 이전 릴리스로 복귀한다.
+- 프로그램과 릴리스는 `/opt/naver-blog-archiver`에 있고, 설정·DB·이미지는
+  `/var/lib/naver-blog-archiver`에 있다. GitHub Pages 쓰기 키는 Oracle 서비스에만,
+  Oracle 배포 키는 GitHub의 `production` 환경에만 제공한다.

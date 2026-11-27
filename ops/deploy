@@ -1,0 +1,139 @@
+#!/usr/bin/bash
+set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+umask 022
+
+if [[ $# != 1 || ! $1 =~ ^[0-9a-f]{40}$ ]]; then
+    echo "Expected one full commit SHA" >&2
+    exit 2
+fi
+
+sha=$1
+source_url=https://github.com/rage147-OwO/naver-blog-archiver.git
+base=/opt/naver-blog-archiver
+releases="$base/releases"
+release="$releases/$sha"
+unit=naver-blog-archiver.service
+operation_lock=/var/lib/naver-blog-archiver/operation.lock
+builder=naver-archiver-deploy
+exec 9>/run/lock/naver-blog-archiver-deploy.lock
+flock -w 7200 9
+
+latest_sha() {
+    git ls-remote --exit-code "$source_url" refs/heads/master | cut -f1
+}
+
+as_builder() {
+    runuser -u "$builder" -- "$@"
+}
+
+healthy() {
+    local expected=$1 pid
+    for attempt in {1..30}; do
+        pid=$(systemctl show -p MainPID --value "$unit")
+        if [[ $pid != 0 && $(readlink -f "/proc/$pid/cwd") == "$(readlink -f "$expected/_code")" ]] \
+            && curl --noproxy '*' --fail --silent --max-time 2 http://127.0.0.1:8767/ >/dev/null \
+            && curl --noproxy '*' --fail --silent --max-time 2 http://127.0.0.1:8767/api/sync/status >/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+activate() {
+    local new_release=$1 link="$base/.current-next"
+    ln -sfn -- "$new_release" "$link"
+    mv -Tf -- "$link" "$base/current"
+}
+
+latest=$(latest_sha)
+if [[ $latest != "$sha" ]]; then
+    echo "Commit $sha was superseded by $latest"
+    exit 0
+fi
+
+previous=$(readlink -f "$base/current")
+if [[ $previous == "$release" ]] && healthy "$release"; then
+    echo "Already running $sha"
+    exit 0
+fi
+
+if [[ ! -f "$release/.prepared" ]]; then
+    if [[ -e $release && $previous != "$release" ]]; then
+        rm -rf -- "$release"
+    fi
+    if [[ $previous == "$release" ]]; then
+        echo "Active release is missing its preparation marker" >&2
+        exit 1
+    fi
+    install -d -o "$builder" -g "$builder" "$release"
+    cleanup() { rm -rf -- "$release"; }
+    trap cleanup EXIT
+
+    as_builder git -C "$release" init -q
+    as_builder git -C "$release" -c core.hooksPath=/dev/null fetch --depth=1 --no-tags \
+        "$source_url" refs/heads/master
+    fetched=$(as_builder git -C "$release" rev-parse FETCH_HEAD)
+    if [[ $fetched != "$sha" ]]; then
+        echo "Commit $sha was superseded by $fetched"
+        exit 0
+    fi
+    as_builder git -C "$release" -c core.hooksPath=/dev/null checkout -q --detach "$sha"
+    as_builder /usr/bin/python3 -m venv "$release/.venv"
+    as_builder "$release/.venv/bin/python" -m pip install --disable-pip-version-check \
+        --no-cache-dir -r "$release/requirements.txt" 'gunicorn==23.0.0'
+    as_builder "$release/.venv/bin/python" -m pip check
+
+    as_builder /usr/bin/bash -s -- "$release" <<'STAGE'
+set -euo pipefail
+release=$1
+state=$(mktemp -d "$release/.smoke.XXXXXXXX")
+trap 'rm -rf -- "$state"' EXIT
+cd "$release/_code"
+STATE_DIRECTORY="$state" PYTHONDONTWRITEBYTECODE=1 "$release/.venv/bin/python" - <<'PY'
+from blog_archiver_wsgi import app
+import gunicorn
+import markdown
+
+with app.test_client() as client:
+    assert client.get("/").status_code == 200
+    assert client.get("/settings").status_code == 200
+    response = client.get("/api/sync/status")
+    assert response.status_code == 200 and response.json["running"] is False
+PY
+STAGE
+
+    chown -hR root:root "$release"
+    touch "$release/.prepared"
+    trap - EXIT
+fi
+
+exec 8<"$operation_lock"
+flock -w 6900 8
+latest=$(latest_sha)
+if [[ $latest != "$sha" ]]; then
+    echo "Commit $sha was superseded by $latest"
+    exit 0
+fi
+
+activate "$release"
+if ! systemctl restart "$unit" || ! healthy "$release"; then
+    journalctl -u "$unit" -n 35 --no-pager >&2
+    echo "Rolling back to $previous" >&2
+    activate "$previous"
+    systemctl restart "$unit"
+    if ! healthy "$previous"; then
+        echo "Rollback health check failed" >&2
+    fi
+    exit 1
+fi
+
+printf '%s\n' "$sha" > "$base/deployed-sha"
+echo "Running $sha"
+for candidate in "$releases"/*; do
+    if [[ -d $candidate && ${candidate##*/} =~ ^[0-9a-f]{40}$ \
+        && $candidate != "$release" && $candidate != "$previous" ]]; then
+        rm -rf -- "$candidate"
+    fi
+done

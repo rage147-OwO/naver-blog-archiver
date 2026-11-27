@@ -24,6 +24,7 @@ import argparse
 import hashlib
 import html as html_mod
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -31,6 +32,8 @@ import sys
 import threading
 import time
 import traceback
+import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -59,6 +62,7 @@ DEFAULT_CONFIG = {
     "excluded_categories": [],             # Jekyll 내보내기에서 제외할 카테고리 (백업은 전부 저장)
     "jekyll_image_base_url": "https://raw.githubusercontent.com/<user>/<repo>/master/_images",
     "jekyll_repo_dir": "",                 # GitHub Pages 저장소 로컬 경로 (publish 명령용)
+    "managed_pages_publish": False,
     "publish_after_sync": False,           # 동기화 후 자동으로 블로그 배포
     "web_port": 8765,
 }
@@ -270,16 +274,34 @@ class NaverClient:
             print(f"[경고] 모바일 API 실패({e}), 데스크톱 API로 폴백")
             return self._list_posts_desktop()
 
-    def _list_posts_mobile(self):
+    def list_public_posts(self):
+        """Require matching complete mobile and desktop lists before publishing."""
+        mobile = self._list_posts_mobile(verify=True)
+        desktop = self._list_posts_desktop(verify=True)
+        mobile_ids = {post["log_no"] for post in mobile}
+        desktop_ids = {post["log_no"] for post in desktop}
+        if len(mobile_ids) != len(mobile) or mobile_ids != desktop_ids:
+            raise RuntimeError("네이버 모바일/데스크톱 목록 불일치")
+        return [post for post in mobile if post["public"]]
+
+    def _list_posts_mobile(self, verify=False):
         items, page = [], 1
         while page <= 300:
             url = (f"https://m.blog.naver.com/api/blogs/{self.blog_id}/post-list"
                    f"?categoryNo=0&itemCount=30&page={page}")
             data = self._get(url).json()
-            batch = data.get("result", {}).get("items", [])
+            result = data.get("result") or {}
+            batch = result.get("items")
+            if verify and (data.get("isSuccess") is not True or not isinstance(batch, list)):
+                raise RuntimeError(f"네이버 모바일 목록 응답이 올바르지 않습니다 (페이지 {page})")
             if not batch:
                 break
             for it in batch:
+                if verify and not isinstance(it.get("allOpenPost"), bool):
+                    raise RuntimeError("네이버 글 공개 여부를 확인할 수 없습니다")
+                public = it.get("allOpenPost") is True and not any(
+                    it.get(flag) for flag in ("notOpen", "buddyOpen", "bothBuddyOpen", "postBlocked")
+                )
                 ts = it.get("addDate")
                 published = (datetime.fromtimestamp(ts / 1000, KST).isoformat(timespec="seconds")
                              if isinstance(ts, (int, float)) else "")
@@ -294,14 +316,17 @@ class NaverClient:
                     "comment_count": it.get("commentCnt") or 0,
                     "sympathy_count": it.get("sympathyCnt") or 0,
                     "editor_version": it.get("smartEditorVersion"),
+                    "public": public,
                 })
             page += 1
             time.sleep(0.2)
-        if not items:
+        if verify and page > 300:
+            raise RuntimeError("네이버 모바일 전체 목록 범위를 벗어났습니다")
+        if not items and not verify:
             raise RuntimeError("모바일 API가 빈 목록을 반환")
         return items
 
-    def _list_posts_desktop(self):
+    def _list_posts_desktop(self, verify=False):
         """레거시 PostTitleListAsync 폴백. 메타데이터가 빈약하다."""
         from urllib.parse import unquote
         items, page, total = [], 1, None
@@ -310,7 +335,12 @@ class NaverClient:
                    f"?blogId={self.blog_id}&currentPage={page}&countPerPage=30")
             raw = self._get(url).text.replace("\\", "\\\\")
             data = json.loads(raw)
-            total = int(data.get("totalCount", 0))
+            if verify and ("totalCount" not in data or not isinstance(data.get("postList"), list)):
+                raise RuntimeError(f"네이버 데스크톱 목록 응답이 올바르지 않습니다 (페이지 {page})")
+            page_total = int(data.get("totalCount", 0))
+            if verify and total is not None and total != page_total:
+                raise RuntimeError("네이버 데스크톱 목록 조회 중 글 수가 변경됐습니다")
+            total = page_total
             for p in data.get("postList", []):
                 add = (p.get("addDate") or "").replace(". ", "-").replace(".", "").strip()
                 items.append({
@@ -327,6 +357,8 @@ class NaverClient:
                 })
             page += 1
             time.sleep(0.2)
+        if verify and (len(items) != total or len({item["log_no"] for item in items}) != total):
+            raise RuntimeError("네이버 데스크톱 목록에서 일부 글이 누락됐습니다")
         return items
 
     def list_categories(self):
@@ -494,7 +526,39 @@ def sanitize_filename(name: str, maxlen: int = 80) -> str:
 # 동기화 엔진
 # ---------------------------------------------------------------------------
 
+class OperationBusy(RuntimeError):
+    """Another operation is modifying the archive or releasing the service."""
+
+
+_OPERATION = threading.Lock()
+
+
+@contextmanager
+def operation_lock():
+    if not _OPERATION.acquire(blocking=False):
+        raise OperationBusy("동기화·발행 또는 서비스 배포가 진행 중입니다")
+    try:
+        lock_path = os.environ.get("ARCHIVER_LOCK_PATH")
+        if lock_path:
+            import fcntl
+            with open(lock_path, "a+b") as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise OperationBusy("서비스 배포가 진행 중입니다") from error
+                yield
+        else:
+            yield
+    finally:
+        _OPERATION.release()
+
+
 def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = None, log=None):
+    with operation_lock():
+        return _run_sync(cfg, full, limit, state, log)
+
+
+def _run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = None, log=None):
     """증분 동기화. state(dict)로 진행상황 공유, log(fn)로 메시지 출력.
     반환: {"listed","added","updated","failed"}"""
     state = state if state is not None else {}
@@ -505,6 +569,8 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
     paths = blog_paths(cfg)
     paths["images"].mkdir(parents=True, exist_ok=True)
     client = NaverClient(cfg["blog_id"], cfg["request_delay"])
+    managed_publish = bool(cfg.get("managed_pages_publish") and cfg.get("publish_after_sync") and limit is None)
+    failed_ids = set()
 
     # 동시 실행 감지 (CLI+웹 등 다른 프로세스) — 차단하진 않고 경고만
     running = con.execute(
@@ -532,12 +598,16 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
 
         # 2) 글 목록
         log("글 목록 수집 중...")
-        items = client.list_posts()
+        items = client.list_public_posts() if managed_publish else client.list_posts()
+        cached_image = None
+        if managed_publish:
+            from pages_publish import published_image_cache
+            cached_image = published_image_cache(cfg, log)
         result["listed"] = len(items)
         log(f"블로그에 글 {len(items)}개 확인")
 
         existing = {r["log_no"]: r for r in con.execute(
-            "SELECT log_no, title, brief, content_sha, status FROM posts")}
+            "SELECT log_no, title, brief, content_sha, status, category, published_at FROM posts")}
 
         # 3) 수집 대상 결정
         plan = []
@@ -545,7 +615,7 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
             old = existing.get(it["log_no"])
             if old is None:
                 plan.append((it, "new"))
-            elif full:
+            elif full or old["status"] != "ok":
                 plan.append((it, "refresh"))
             elif old["title"] != it["title"] or (it["brief"] and old["brief"] != it["brief"]):
                 plan.append((it, "changed"))
@@ -567,6 +637,8 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
 
         # 5) 본문 + 이미지 수집
         for it, reason in plan:
+            if managed_publish and shutil.disk_usage(paths["base"]).free < 2 * 1024 ** 3:
+                raise RuntimeError("동기화에 사용할 Oracle 디스크 공간이 부족합니다 (2 GiB 미만)")
             if state.get("stop"):
                 log("사용자 요청으로 중단")
                 break
@@ -592,7 +664,8 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
                         img_rows.append((log_no, seq, src, old["download_url"], fn,
                                          old["content_type"], old["bytes"], old["sha256"], 1))
                     else:
-                        content, ctype, used = client.download_image(src, cfg["image_original_quality"])
+                        archived = cached_image(log_no, src) if cached_image else None
+                        content, ctype, used = archived or client.download_image(src, cfg["image_original_quality"])
                         if content:
                             fn = image_filename(src, ext_from(ctype, used))
                             img_dir.mkdir(parents=True, exist_ok=True)
@@ -603,15 +676,13 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
                             fn = None
                             img_rows.append((log_no, seq, src, "", "", "", 0, "", 0))
                             log(f"  [이미지 실패] {src[:80]}")
-                        time.sleep(cfg["request_delay"] * 0.3)
+                        if not archived:
+                            time.sleep(cfg["request_delay"] * 0.3)
                     img_files.append(fn)
                     if fn:
                         keep.add(fn)
-                # 글 수정으로 빠진 이미지 파일 정리
-                if img_dir.exists():
-                    for f in img_dir.iterdir():
-                        if f.name not in keep:
-                            f.unlink(missing_ok=True)
+                if managed_publish and any(filename is None for filename in img_files):
+                    raise RuntimeError("이미지를 모두 가져오지 못해 기존 게시본을 유지합니다")
 
                 html_local, markdown = build_outputs(
                     main_html, log_no, img_files,
@@ -654,15 +725,27 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
                                 [(log_no, m["kind"], m["info"]) for m in parsed["media"]])
                 con.commit()
 
-                if reason == "new":
+                if img_dir.exists():
+                    for image_file in img_dir.iterdir():
+                        if image_file.is_file() and image_file.name not in keep:
+                            try:
+                                image_file.unlink(missing_ok=True)
+                            except OSError as error:
+                                log(f"[경고] 이전 이미지 정리 실패: {error}")
+
+                if old is None or not old["content_sha"]:
                     result["added"] += 1
-                else:
+                elif (old["content_sha"] != content_sha or old["title"] != it["title"]
+                      or old["category"] != it["category"] or old["published_at"] != it["published_at"]
+                      or old["status"] != "ok"):
                     result["updated"] += 1
                 n_img = sum(1 for f in img_files if f)
                 log(f"[{state.get('done',0)+1}/{len(plan)}] {it['title']} "
                     f"({it['category']}, 이미지 {n_img}/{len(img_files)})")
             except Exception as e:
+                con.rollback()
                 result["failed"] += 1
+                failed_ids.add(log_no)
                 log(f"[실패] {it['title']}: {e}")
                 if it["log_no"] not in existing:
                     con.execute("""INSERT OR IGNORE INTO posts(log_no, blog_id, title, category,
@@ -678,7 +761,7 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
         # 6) 블로그에서 사라진 글 표시 (삭제/비공개 — 아카이브 내용은 보존)
         live = {it["log_no"] for it in items}
         gone = [ln for ln in existing if ln not in live]
-        if gone and not limit:
+        if gone and not limit and not state.get("stop"):
             con.executemany("UPDATE posts SET status='missing' WHERE log_no=? AND status='ok'",
                             [(ln,) for ln in gone])
             con.commit()
@@ -691,11 +774,14 @@ def run_sync(cfg: dict, full: bool = False, limit: int = None, state: dict = Non
         con.commit()
         log(f"완료 — 신규 {result['added']}, 갱신 {result['updated']}, 실패 {result['failed']}")
 
-        # 동기화 후 자동 블로그 배포 (config: publish_after_sync)
-        if cfg.get("publish_after_sync") and (result["added"] or result["updated"]) and not state.get("stop"):
+        if managed_publish and not state.get("stop"):
+            from pages_publish import publish_public
+            result["publication"] = publish_public(cfg, live, failed_ids, log=log)
+        elif (cfg.get("publish_after_sync") and not cfg.get("managed_pages_publish")
+              and (result["added"] or result["updated"]) and not state.get("stop")):
             try:
                 log("변경 감지 → GitHub Pages 블로그 자동 배포 시작")
-                publish_jekyll(cfg, log=log)
+                _publish_jekyll(cfg, log=log)
             except Exception as e:
                 log(f"[블로그 배포 실패] {e}")
     except Exception as e:
@@ -767,7 +853,8 @@ def _export_posts(con, cfg, include_excluded: bool):
     return [r for r in rows if _norm_cat(r["category"]) not in excluded]
 
 
-def export_jekyll(cfg: dict, dest: Path = None, log=None) -> dict:
+def export_jekyll(cfg: dict, dest: Path = None, log=None, *, posts=None,
+                   retained_categories=(), include_images=True) -> dict:
     """레거시 SavedPost 포맷 호환 Jekyll 내보내기 (_posts/_images/_pages/nav_list_main)."""
     log = log or (lambda m: print(m, flush=True))
     con = open_db(cfg)
@@ -779,13 +866,18 @@ def export_jekyll(cfg: dict, dest: Path = None, log=None) -> dict:
     (dest / "_images").mkdir()
     (dest / "_pages" / "categories").mkdir(parents=True)
 
-    posts = _export_posts(con, cfg, include_excluded=False)
+    if posts is None:
+        posts = _export_posts(con, cfg, include_excluded=False)
     base_url = cfg["jekyll_image_base_url"].rstrip("/")
-    used_names, cat_pairs = set(), {}
+    used_names = set()
+    cat_pairs = dict(retained_categories)
+    post_files = {}
     for p in posts:
         date = (p["published_at"] or "")[:10] or "1970-01-01"
         fname = f"{date}-{sanitize_filename(p['title'])}"
         if fname in used_names:
+            fname += f"-{p['log_no']}"
+        while fname in used_names:
             fname += f"-{p['log_no']}"
         used_names.add(fname)
         slug = get_slug(con, p["category"] or "기타")
@@ -793,14 +885,16 @@ def export_jekyll(cfg: dict, dest: Path = None, log=None) -> dict:
 
         md = p["markdown"].replace("](images/", f"]({base_url}/")
         md = md.replace('src="images/', f'src="{base_url}/')
-        title_esc = p["title"].replace('"', '\\"')
-        front = (f"---\ntitle: \"{title_esc}\"\ndate: {date}\ncategories:\n - {slug}\n"
+        title_value = json.dumps(p["title"], ensure_ascii=False)
+        front = (f"---\ntitle: {title_value}\ndate: {date}\ncategories:\n - {slug}\n"
                  f"naver_url: {p['url']}\n---\n\n")
-        (dest / "_posts" / f"{fname}.md").write_text(front + md, encoding="utf-8")
+        post_file = dest / "_posts" / f"{fname}.md"
+        post_file.write_text(front + md, encoding="utf-8")
+        post_files[p["log_no"]] = post_file
 
         # 이미지 복사
         src_dir = paths["images"] / str(p["log_no"])
-        if src_dir.exists():
+        if include_images and src_dir.exists():
             shutil.copytree(src_dir, dest / "_images" / str(p["log_no"]), dirs_exist_ok=True)
 
     # 카테고리 페이지 + nav
@@ -828,7 +922,10 @@ def export_jekyll(cfg: dict, dest: Path = None, log=None) -> dict:
 
     con.close()
     log(f"Jekyll 내보내기 완료: 글 {len(posts)}개 → {dest}")
-    return {"count": len(posts), "dest": str(dest)}
+    result = {"count": len(posts), "dest": str(dest)}
+    if not include_images:
+        result["post_files"] = post_files
+    return result
 
 
 def export_markdown(cfg: dict, dest: Path = None, log=None) -> dict:
@@ -861,6 +958,15 @@ def export_markdown(cfg: dict, dest: Path = None, log=None) -> dict:
 
 
 def publish_jekyll(cfg: dict, log=None) -> dict:
+    with operation_lock():
+        if cfg.get("managed_pages_publish"):
+            from pages_publish import publish_public
+            client = NaverClient(cfg["blog_id"], cfg["request_delay"])
+            return publish_public(cfg, {post["log_no"] for post in client.list_public_posts()}, log=log)
+        return _publish_jekyll(cfg, log=log)
+
+
+def _publish_jekyll(cfg: dict, log=None) -> dict:
     """Jekyll 내보내기 → GitHub Pages 저장소 반영 → commit → push.
     관리 영역(_posts/NaverBackup, _images, _pages/categories, _includes/nav_list_main)만
     통째로 교체하므로 저장소의 다른 파일(직접 쓴 글 등)은 건드리지 않는다."""
@@ -1471,26 +1577,42 @@ def create_app(cfg: dict):
 
     @app.route("/api/sync/start", methods=["POST"])
     def sync_start():
-        if SYNC_STATE["running"]:
-            return jsonify({"error": "이미 실행 중"}), 409
         body = request.get_json(silent=True) or {}
+        if not isinstance(body, dict):
+            return jsonify({"error": "잘못된 요청"}), 400
         full = body.get("mode") == "full"
         limit = body.get("limit")
-        SYNC_STATE.update(running=True, mode=body.get("mode", "incr"), total=0, done=0,
-                          current="", stop=False, log=[], result=None)
+        if limit is not None and (type(limit) is not int or limit < 1):
+            return jsonify({"error": "limit는 양의 정수여야 합니다"}), 400
+        lock = operation_lock()
+        try:
+            lock.__enter__()
+        except OperationBusy as error:
+            return jsonify({"error": str(error)}), 409
+        run_id = uuid.uuid4().hex
+        SYNC_STATE.update(running=True, run_id=run_id, mode=body.get("mode", "incr"),
+                          total=0, done=0, current="", stop=False, log=[], result=None, error=None)
+        run_config = dict(cfg)
 
         def worker():
             def weblog(msg):
                 SYNC_STATE["log"].append(msg)
             try:
-                res = run_sync(cfg, full=full, limit=limit, state=SYNC_STATE, log=weblog)
-                SYNC_STATE["result"] = res
-            except Exception as e:
-                SYNC_STATE["log"].append(f"[오류] {e}")
+                SYNC_STATE["result"] = _run_sync(run_config, full, limit, SYNC_STATE, weblog)
+            except Exception as error:
+                SYNC_STATE["error"] = str(error)
+                weblog(f"[오류] {error}")
             finally:
                 SYNC_STATE["running"] = False
-        threading.Thread(target=worker, daemon=True).start()
-        return jsonify({"ok": True})
+                lock.__exit__(None, None, None)
+
+        try:
+            threading.Thread(target=worker, daemon=True).start()
+        except Exception:
+            SYNC_STATE["running"] = False
+            lock.__exit__(None, None, None)
+            raise
+        return jsonify({"ok": True, "run_id": run_id})
 
     @app.route("/api/sync/stop", methods=["POST"])
     def sync_stop():

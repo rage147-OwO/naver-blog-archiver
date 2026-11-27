@@ -1,0 +1,10 @@
+[Unit]
+Description=Synchronize Naver and publish the GitHub Pages blog
+Requires=naver-blog-archiver.service
+After=naver-blog-archiver.service
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+ExecStart=/usr/bin/python3 /opt/naver-blog-archiver/current/ops/daily_sync.py
+TimeoutStartSec=4h5min

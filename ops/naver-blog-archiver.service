@@ -1,0 +1,26 @@
+[Unit]
+Description=Naver Blog Archiver
+After=network.target
+
+[Service]
+Type=exec
+DynamicUser=yes
+StateDirectory=naver-blog-archiver
+StateDirectoryMode=0700
+WorkingDirectory=/opt/naver-blog-archiver/current/_code
+LoadCredential=github-pages.key:/etc/naver-blog-archiver/credentials/github-pages.key
+Environment=ARCHIVER_LOCK_PATH=/var/lib/naver-blog-archiver/operation.lock
+Environment=GIT_AUTHOR_NAME=Naver-Blog-Archiver
+Environment=GIT_COMMITTER_NAME=Naver-Blog-Archiver
+Environment=GIT_AUTHOR_EMAIL=96696114+rage147-OwO@users.noreply.github.com
+Environment=GIT_COMMITTER_EMAIL=96696114+rage147-OwO@users.noreply.github.com
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/naver-blog-archiver/current/.venv/bin/python -m gunicorn --bind 127.0.0.1:8767 --workers 1 --threads 4 blog_archiver_wsgi:app
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=35s
+
+[Install]
+WantedBy=multi-user.target
