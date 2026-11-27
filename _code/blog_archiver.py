@@ -36,7 +36,6 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -1442,8 +1441,8 @@ SETTINGS_HTML = """{% extends "base.html" %}{% block title %}설정{% endblock %
 {% endblock %}"""
 
 
-def create_app(cfg: dict, *, admin_origin: Optional[str] = None):
-    from flask import Flask, abort, request, render_template, redirect, url_for, send_from_directory, jsonify
+def create_app(cfg: dict):
+    from flask import Flask, request, render_template, redirect, url_for, send_from_directory, jsonify
     from jinja2 import DictLoader
 
     app = Flask(__name__)
@@ -1452,35 +1451,6 @@ def create_app(cfg: dict, *, admin_origin: Optional[str] = None):
         "post.html": POST_HTML, "sync.html": SYNC_HTML, "cats.html": CATS_HTML,
         "export.html": EXPORT_HTML, "settings.html": SETTINGS_HTML,
     })
-
-    if admin_origin:
-        from urllib.parse import urlsplit
-
-        public_origin = urlsplit(admin_origin)
-        if public_origin.scheme != "https" or not public_origin.hostname:
-            raise ValueError("The archive admin origin must use HTTPS.")
-        expected_public_origin = f"https://{public_origin.netloc}"
-
-        @app.before_request
-        def protect_admin_writes():
-            if request.method in {"GET", "HEAD", "OPTIONS"}:
-                return
-
-            if request.host == public_origin.netloc:
-                expected_origin = expected_public_origin
-            elif urlsplit(request.host_url).hostname in {"127.0.0.1", "::1", "localhost"}:
-                expected_origin = request.host_url.rstrip("/")
-            else:
-                abort(403)
-
-            if request.headers.get("Origin") != expected_origin:
-                abort(403)
-
-        @app.after_request
-        def protect_admin_responses(response):
-            response.headers["Cache-Control"] = "private, no-store"
-            response.headers["X-Frame-Options"] = "DENY"
-            return response
 
     def side_counts():
         con = open_db(cfg)
