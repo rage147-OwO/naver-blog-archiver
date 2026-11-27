@@ -36,6 +36,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -1441,7 +1442,7 @@ SETTINGS_HTML = """{% extends "base.html" %}{% block title %}설정{% endblock %
 {% endblock %}"""
 
 
-def create_app(cfg: dict, *, admin_origin: str | None = None):
+def create_app(cfg: dict, *, admin_origin: Optional[str] = None):
     from flask import Flask, abort, request, render_template, redirect, url_for, send_from_directory, jsonify
     from jinja2 import DictLoader
 
